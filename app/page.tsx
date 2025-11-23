@@ -3,65 +3,23 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { addDays, format, isSameDay, parseISO, startOfDay, startOfMonth, startOfWeek } from "date-fns";
+import { format, parseISO, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
 import {
-  CalendarEventType,
-  CalendarParticipant,
   HydratedCalendarEvent,
   hydrateEvents,
   useEvents,
   WEEK_START as EVENTS_WEEK_START,
 } from "@/lib/events-store";
-import { CalendarDayCell } from "@/components/calendar-day-cell";
+import { CalendarView } from "@/components/calendar/calendar-view";
+import type { CalendarDay } from "@/lib/calendar";
+import { buildCalendarDays } from "@/lib/calendar";
+import { CalendarInspector, CalendarInspectorSection } from "@/components/calendar/inspector";
 
 const WEEK_START = EVENTS_WEEK_START;
 const WEEKS_TO_RENDER = 156;
-
-type BaseCalendarDay = {
-  date: Date;
-  label: string;
-  isToday: boolean;
-  isMonthStart: boolean;
-  events: HydratedCalendarEvent[];
-};
-
-type CalendarDay = BaseCalendarDay & {
-  isSelected: boolean;
-  isDimmed: boolean;
-};
-
-const EVENT_TYPE_LABELS: Record<CalendarEventType, string> = {
-  "time-off": "Time Off",
-  birthday: "Birthday",
-  "work-anniversary": "Work Anniversary",
-  "company-event": "Company Event",
-  deadline: "Deadline",
-};
-
-function generateCalendarDays(totalWeeks: number, today: Date, events: HydratedCalendarEvent[]): BaseCalendarDay[] {
-  const firstVisibleDay = startOfWeek(today, { weekStartsOn: WEEK_START });
-  const totalDays = totalWeeks * 7;
-
-  return Array.from({ length: totalDays }, (_, index) => {
-    const dayDate = addDays(firstVisibleDay, index);
-
-    return {
-      date: dayDate,
-      label: format(dayDate, "d"),
-      isToday: isSameDay(dayDate, today),
-      isMonthStart: isSameDay(dayDate, startOfMonth(dayDate)),
-      events: events.filter((event) => {
-        const dayStart = startOfDay(dayDate).getTime();
-        const eventStartDay = startOfDay(event.startsAt).getTime();
-        const eventEndDay = startOfDay(event.endsAt ?? event.startsAt).getTime();
-        return eventStartDay <= dayStart && eventEndDay >= dayStart;
-      }),
-    };
-  });
-}
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -114,7 +72,7 @@ export default function Home() {
     });
   }, [hydratedEvents, selectedDays]);
 
-  const calendarDays = useMemo(() => {
+  const calendarDays = useMemo<CalendarDay[]>(() => {
     const now = new Date();
     const normalizedToday = new Date(
       now.getFullYear(),
@@ -122,7 +80,7 @@ export default function Home() {
       now.getDate(),
     );
 
-    const baseDays = generateCalendarDays(WEEKS_TO_RENDER, normalizedToday, hydratedEvents);
+    const baseDays = buildCalendarDays(WEEKS_TO_RENDER, normalizedToday, hydratedEvents, WEEK_START);
     const hasSelection = selectedDays.size > 0;
 
     return baseDays.map((day) => {
@@ -136,7 +94,7 @@ export default function Home() {
     });
   }, [hydratedEvents, selectedDays]);
 
-  const inspectorSections = useMemo<Array<{ date: Date; events: HydratedCalendarEvent[] }>>(() => {
+  const inspectorSections = useMemo<CalendarInspectorSection[]>(() => {
     const groups = new Map<string, { date: Date; events: HydratedCalendarEvent[] }>();
 
     filteredEvents.forEach((event) => {
@@ -154,31 +112,6 @@ export default function Home() {
       }))
       .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [filteredEvents]);
-
-  const selectedEventTypeLabel = selectedEvent ? EVENT_TYPE_LABELS[selectedEvent.type] : null;
-
-  const selectedEventScheduleLabel = useMemo(() => {
-    if (!selectedEvent) {
-      return null;
-    }
-
-    const start = selectedEvent.startsAt;
-    const end = selectedEvent.endsAt ?? selectedEvent.startsAt;
-
-    if (selectedEvent.isAllDay) {
-      return isSameDay(start, end)
-        ? format(start, "EEEE, MMM d")
-        : `${format(start, "EEE, MMM d")} – ${format(end, "EEE, MMM d")}`;
-    }
-
-    if (!selectedEvent.endsAt) {
-      return format(start, "EEE, MMM d · h:mm a");
-    }
-
-    return isSameDay(start, selectedEvent.endsAt)
-      ? `${format(start, "EEE, MMM d · h:mm a")} – ${format(selectedEvent.endsAt, "h:mm a")}`
-      : `${format(start, "EEE, MMM d · h:mm a")} – ${format(selectedEvent.endsAt, "EEE, MMM d · h:mm a")}`;
-  }, [selectedEvent]);
 
   const toggleDaySelection = (date: Date, additive: boolean) => {
     const key = format(date, "yyyy-MM-dd");
@@ -223,7 +156,13 @@ export default function Home() {
 
   const toggleSidebar = () => {
     if (selectedDays.size > 0 || selectedEvent) {
-      setIsSidebarOpen(true);
+      if (isSidebarOpen) {
+        setSelectedDays(new Set());
+        setSelectedEvent(null);
+        setIsSidebarOpen(false);
+      } else {
+        setIsSidebarOpen(true);
+      }
       return;
     }
     setIsSidebarOpen((previous) => !previous);
@@ -259,7 +198,9 @@ export default function Home() {
       event.preventDefault();
       setIsSidebarOpen((previous) => {
         if (selectedDaysRef.current.size > 0 || selectedEventRef.current) {
-          return true;
+          setSelectedDays(new Set());
+          setSelectedEvent(null);
+          return false;
         }
         return !previous;
       });
@@ -363,32 +304,13 @@ export default function Home() {
               isSidebarOpen ? "mr-[295px]" : "mr-0",
             )}
           >
-            <div
-              className="grid h-full min-h-screen grid-cols-7 gap-[1px] bg-border"
-              style={{
-                gridAutoRows: "minmax(calc(100svh/5), 1fr)",
-              }}
-            >
-              {calendarDays.map((day) => (
-                <button
-                  key={format(day.date, "yyyy-MM-dd")}
-                  type="button"
-                  className={cn(
-                    "group relative flex h-full w-full items-stretch bg-bg text-left focus:outline-none",
-                  )}
-                  onClick={(event) => toggleDaySelection(day.date, event.shiftKey)}
-                >
-                  <div className="flex h-full w-full">
-                      <CalendarDayCell
-                        day={day}
-                        selectedEventId={selectedEventId}
-                        onEventClick={handleEventSelect}
-                      />
-                  </div>
-                </button>
-              ))}
-                  </div>
-                </div>
+            <CalendarView
+              days={calendarDays}
+              selectedEventId={selectedEventId}
+              onDaySelect={toggleDaySelection}
+              onEventSelect={handleEventSelect}
+            />
+          </div>
 
           <aside className={cn(
             "pointer-events-none absolute bottom-[7px] right-[7px] top-0 flex w-[288px] pt-[7px]",
@@ -402,137 +324,14 @@ export default function Home() {
                   : "pointer-events-none translate-x-full",
               )}
             >
-              <div className="scrollbar-hide flex-1 overflow-y-auto px-[20px] pb-[20px] pt-[67px] text-body-2 text-fg3">
-                {selectedEvent ? (
-                  <div className="flex h-full flex-col gap-[20px]">
-                    <div className="flex items-start justify-between gap-[12px]">
-                      <div className="flex flex-col gap-[6px]">
-                        {selectedEventTypeLabel && (
-                          <span className="text-caption font-semibold uppercase tracking-[0.12em] text-fg4">
-                            {selectedEventTypeLabel}
-                          </span>
-                        )}
-                        <h2 className="text-h3 text-fg">{selectedEvent.title}</h2>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleEventClose}
-                        aria-label="Close event details"
-                        className="flex size-[32px] items-center justify-center rounded-full border border-border bg-bg2 text-button-2 font-medium text-fg transition hover:border-ring hover:bg-bg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
-                      >
-                        X
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col gap-[16px] rounded-md border border-border bg-bg px-[16px] py-[16px] text-fg">
-                      <div className="flex flex-col gap-[4px]">
-                        <span className="text-caption uppercase tracking-[0.08em] text-fg4">Schedule</span>
-                        {selectedEventScheduleLabel && (
-                          <span className="text-body-2 text-fg">{selectedEventScheduleLabel}</span>
-                        )}
-                        {(selectedEvent.timeZone || !selectedEvent.isAllDay) && (
-                          <span className="text-caption text-fg4">
-                            {selectedEvent.timeZone ?? localTimeZone}
-                          </span>
-                        )}
-                      </div>
-
-                      {selectedEvent.location && (
-                        <div className="flex flex-col gap-[4px]">
-                          <span className="text-caption uppercase tracking-[0.08em] text-fg4">Location</span>
-                          <span className="text-body-2 text-fg">{selectedEvent.location}</span>
-                        </div>
-                      )}
-
-                      {selectedEvent.recurrenceRule && (
-                        <div className="flex flex-col gap-[4px]">
-                          <span className="text-caption uppercase tracking-[0.08em] text-fg4">Repeats</span>
-                          <span className="text-body-2 text-fg3">{selectedEvent.recurrenceRule}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {selectedEvent.description && (
-                      <div className="flex flex-col gap-[6px]">
-                        <span className="text-caption uppercase tracking-[0.08em] text-fg4">Description</span>
-                        <p className="whitespace-pre-wrap text-body-2 text-fg3">{selectedEvent.description}</p>
-                      </div>
-                    )}
-
-                    <div className="flex flex-col gap-[6px]">
-                      <span className="text-caption uppercase tracking-[0.08em] text-fg4">People</span>
-                      <div className="flex flex-col gap-[4px] text-body-2 text-fg">
-                        <span>
-                          {selectedEvent.owner.name}
-                          <span className="text-caption text-fg4"> · Organizer</span>
-                        </span>
-                        {selectedEvent.attendees.length === 0 ? (
-                          <span className="text-caption text-fg4">No additional attendees</span>
-                        ) : (
-                          selectedEvent.attendees.map((person: CalendarParticipant) => (
-                            <span key={person.id}>{person.name}</span>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : inspectorSections.length === 0 ? (
-                  <div className="flex h-full items-center justify-center text-caption text-fg4">
-                    No events scheduled
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-[20px]">
-                    {inspectorSections.map((section) => (
-                      <div key={section.date.toISOString()} className="flex flex-col gap-[10px]">
-                        <div className="flex items-baseline justify-between">
-                          <span className="text-caption font-semibold uppercase tracking-[0.12em] text-fg2">
-                            {format(section.date, "EEE, MMM d")}
-                          </span>
-                          <span className="text-tag text-fg4">
-                            {section.events.length} event{section.events.length > 1 ? "s" : ""}
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-[8px]">
-                          {section.events.map((event: HydratedCalendarEvent) => (
-                            <button
-                              key={event.id}
-                              type="button"
-                              onClick={() => handleEventSelect(event)}
-                              className={cn(
-                                "flex w-full items-center justify-between rounded-md border border-border bg-bg px-[12px] py-[10px] text-left transition hover:border-ring hover:shadow-[0_0_0_1px_rgba(0,0,0,0.08)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40",
-                                selectedEventId === event.id && "border-success bg-green-50",
-                              )}
-                            >
-                              <div className="flex min-w-0 flex-col gap-[4px]">
-                                <span className="text-body-2 font-medium text-fg">{event.title}</span>
-                                {event.description && (
-                                  <span className="text-caption text-fg3 line-clamp-1">
-                                    {event.description}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="ml-[12px] flex min-w-[120px] flex-col items-end gap-[4px] text-right">
-                                <span className="text-tag text-fg3">
-                                  {event.isAllDay
-                                    ? "All day"
-                                    : event.endsAt
-                                      ? `${format(event.startsAt, "h:mm a")} – ${format(event.endsAt, "h:mm a")}`
-                                      : format(event.startsAt, "h:mm a")}
-                                </span>
-                                {event.attendees.length > 0 && (
-                                  <span className="text-caption text-fg4 line-clamp-1 max-w-[160px]">
-                                    {event.attendees.map((p) => p.name).join(", ")}
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <CalendarInspector
+                sections={inspectorSections}
+                selectedEvent={selectedEvent}
+                selectedEventId={selectedEventId}
+                onSelectEvent={handleEventSelect}
+                onCloseEvent={handleEventClose}
+                localTimeZone={localTimeZone}
+              />
             </div>
           </aside>
         </div>
