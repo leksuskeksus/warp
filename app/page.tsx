@@ -84,7 +84,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="force-light flex h-screen overflow-hidden bg-bg text-g8">
+    <div className="force-light flex h-screen bg-bg text-g8">
       <div className="max-tablet:hidden sticky inset-0 right-auto flex h-screen min-w-[250px] flex-col justify-between bg-g98 p-[20px]">
         <div>
           <Image
@@ -121,10 +121,9 @@ export default function Home() {
         </div>
       </div>
 
-      <main className="relative flex flex-1 flex-col overflow-hidden border border-border bg-bg">
-        <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex h-[51px] items-center justify-between gap-[20px] px-[32px] shadow-[0_8px_15px_-12px_rgba(0,0,0,0.12)]">
-          <div className="absolute inset-0 -z-10 bg-gradient-to-b from-[rgba(255,255,255,1)] to-[rgba(255,255,255,0)]" />
-          <div className="pointer-events-auto flex flex-1 justify-center">
+      <main className="relative flex flex-1 min-h-0 flex-col overflow-hidden border border-border bg-bg">
+        <header className="absolute inset-x-0 top-0 z-20 flex h-[51px] items-center justify-between gap-[20px] px-[32px]">
+          <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-[rgba(255,255,255,1)] to-[rgba(255,255,255,0)]" />
           <div className="flex flex-1 justify-center">
             <div className="flex h-[35px] w-full max-w-[420px] items-center gap-[10px] rounded-md border border-border bg-bg px-[14px] transition-[border,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40">
               <svg
@@ -157,24 +156,24 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <div className="pointer-events-auto flex items-center justify-end">
+          <div className="flex items-center justify-end">
             <Button
               variant="secondary"
               size="sm"
               onClick={toggleSidebar}
               className="flex h-[35px] items-center rounded-md px-[14px] pr-[7px] text-button-2 font-medium"
             >
-              <span>{isSidebarOpen ? "Events" : "Events"}</span>
+              <span>{isSidebarOpen ? "Hide details" : "Show details"}</span>
               <span className="ml-[7px] flex size-[18px] items-center justify-center rounded-[6px] border border-border bg-bg2 text-caption font-semibold leading-none">
                 S
               </span>
             </Button>
           </div>
         </header>
-        <div className="relative flex flex-1 pt-[51px]">
+        <div className="relative flex flex-1 min-h-0 pt-[51px]">
           <div
             className={cn(
-              "scrollbar-hide flex-1 overflow-y-auto bg-bg px-[12px] py-[24px] transition-[margin-right] duration-200 ease-out",
+              "scrollbar-hide flex-1 overflow-y-auto bg-bg px-[12px] py-[24px] transition-[margin-right] duration-200 ease-out min-h-0",
               isSidebarOpen ? "mr-[224px]" : "mr-0",
             )}
           >
