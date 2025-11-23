@@ -136,10 +136,160 @@ export default function Home() {
     return addWeeks(start, -TOTAL_WEEKS_BACKWARD);
   }, [today]);
 
+  // Convert draft event form values to a preview hydrated event
+  const draftPreviewEvent = useMemo<HydratedCalendarEvent | null>(() => {
+    if (!draftEvent || !draftEventKey) {
+      return null;
+    }
+
+    try {
+      const parseTime = (input: string | undefined, fallback: { hours: number; minutes: number }) => {
+        if (!input) {
+          return fallback;
+        }
+        const [hourPart, minutePart] = input.split(":");
+        const hours = Number.parseInt(hourPart ?? "", 10);
+        const minutes = Number.parseInt(minutePart ?? "", 10);
+        if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+          return fallback;
+        }
+        return { hours, minutes };
+      };
+
+      if (!draftEvent.startDate) {
+        return null;
+      }
+
+      const startDate = parseISO(draftEvent.startDate);
+      if (Number.isNaN(startDate.getTime())) {
+        return null;
+      }
+
+      const startTimeParts = parseTime(draftEvent.startTime, { hours: 9, minutes: 0 });
+      const isAllDay = draftEvent.isAllDay;
+      const start = isAllDay
+        ? startOfDay(startDate)
+        : setTime(startDate, {
+            hours: startTimeParts.hours,
+            minutes: startTimeParts.minutes,
+            seconds: 0,
+            milliseconds: 0,
+          });
+
+      let end: Date | null = null;
+      if (draftEvent.endDate) {
+        const endDate = parseISO(draftEvent.endDate);
+        if (!Number.isNaN(endDate.getTime())) {
+          if (isAllDay) {
+            end = endOfDay(endDate);
+          } else if (draftEvent.endTime) {
+            const endTimeParts = parseTime(draftEvent.endTime, startTimeParts);
+            end = setTime(endDate, {
+              hours: endTimeParts.hours,
+              minutes: endTimeParts.minutes,
+              seconds: 0,
+              milliseconds: 0,
+            });
+          } else {
+            end = endOfDay(endDate);
+          }
+        }
+      }
+
+      if (!end) {
+        end = isAllDay ? endOfDay(startDate) : addMinutes(start, 30);
+      }
+
+      const requiresPerson = PERSON_EVENT_TYPES.has(draftEvent.type);
+      const requiresTitle = TITLE_REQUIRED_EVENT_TYPES.has(draftEvent.type);
+      const selectedPerson = requiresPerson ? peopleById.get(draftEvent.personId) ?? null : null;
+
+      const ownerParticipant: CalendarParticipant = requiresPerson && selectedPerson
+        ? {
+            id: selectedPerson.id,
+            name: selectedPerson.name,
+            email: selectedPerson.email,
+            role: "organizer",
+          }
+        : {
+            id: DEFAULT_LOCAL_OWNER.id,
+            name: draftEvent.ownerName || DEFAULT_LOCAL_OWNER.name,
+            email: draftEvent.ownerEmail || undefined,
+            role: DEFAULT_LOCAL_OWNER.role,
+          };
+
+      const resolvedTitle = requiresPerson && selectedPerson
+        ? draftEvent.type === "birthday"
+          ? `${selectedPerson.name}'s Birthday`
+          : draftEvent.type === "time-off"
+            ? `${selectedPerson.name} Time Off`
+            : `${selectedPerson.name}'s Work Anniversary`
+        : draftEvent.title.trim() || (requiresTitle ? "" : "Untitled Event");
+
+      // Parse attendees from attendeesInput
+      const attendees: CalendarParticipant[] = [];
+      if (draftEvent.attendeesInput) {
+        const lines = draftEvent.attendeesInput.split(/\r?\n/).filter(Boolean);
+        lines.forEach((line) => {
+          const match = line.match(/<([^>]+)>/);
+          const email = match?.[1]?.trim();
+          const name = match ? line.replace(match[0], "").trim() : line.trim();
+          if (name) {
+            const person = people.find((p) => p.email === email || p.name === name);
+            attendees.push({
+              id: person?.id || crypto.randomUUID(),
+              personId: person?.id,
+              name: name || email || "Attendee",
+              email: email || person?.email,
+              role: "attendee",
+            });
+          }
+        });
+      }
+
+      // Filter out owner from attendees
+      const normalizedAttendees = attendees.filter((attendee) => {
+        if (attendee.email && ownerParticipant.email) {
+          return attendee.email.toLowerCase() !== ownerParticipant.email.toLowerCase();
+        }
+        if (attendee.id && attendee.id === ownerParticipant.id) {
+          return false;
+        }
+        return attendee.name !== ownerParticipant.name;
+      });
+
+      const draftEventData: CalendarEvent = {
+        id: `draft-${draftEventKey}`,
+        title: resolvedTitle,
+        startsAt: start.toISOString(),
+        endsAt: end ? end.toISOString() : null,
+        isAllDay,
+        type: draftEvent.type,
+        description: draftEvent.description.trim() || undefined,
+        owner: ownerParticipant,
+        attendees: normalizedAttendees,
+        location: draftEvent.location.trim() || undefined,
+        timeZone: draftEvent.timeZone || localTimeZone,
+        recurrenceRule: draftEvent.recurrenceRule.trim() || undefined,
+        source: { provider: "local" },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      return hydrateEvent(draftEventData);
+    } catch {
+      return null;
+    }
+  }, [draftEvent, draftEventKey, peopleById, people, localTimeZone]);
+
   const hydratedEvents = useMemo(() => {
     const events = hydrateEvents(persistedEvents);
+    // Include draft preview event if it exists
+    if (draftPreviewEvent) {
+      events.push(draftPreviewEvent);
+    }
     return events.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
-  }, [persistedEvents]);
+  }, [persistedEvents, draftPreviewEvent]);
 
   const filteredEvents = useMemo(() => {
     if (selectedDays.size === 0) {
@@ -366,8 +516,6 @@ export default function Home() {
       setIsDraftSaving(false);
       setSelectedEvent(null);
 
-      const startDayKey = format(baseStart, "yyyy-MM-dd");
-      setSelectedDays(new Set([startDayKey]));
       setIsSidebarOpen(true);
       ensureWeekVisible(getWeekIndexForDate(baseStart));
     },
@@ -587,14 +735,15 @@ export default function Home() {
       setIsDraftSaving(true);
       try {
         setPersistedEvents([...persistedEvents, newEvent]);
-      const hydratedNewEvent = hydrateEvent(newEvent);
-      setSelectedEvent(hydratedNewEvent);
+        const hydratedNewEvent = hydrateEvent(newEvent);
+        // Clear draft first
         setDraftEvent(null);
         setDraftEventKey(null);
         setDraftErrors([]);
-      setSelectedDays(new Set([format(start, "yyyy-MM-dd")]));
-      setIsSidebarOpen(true);
-      ensureWeekVisible(getWeekIndexForDate(start));
+        // Then select the new event the same way as clicking an existing event
+        ensureWeekVisible(getWeekIndexForDate(start));
+        setSelectedEvent(hydratedNewEvent);
+        setIsSidebarOpen(true);
       } finally {
         setIsDraftSaving(false);
       }
@@ -789,8 +938,6 @@ export default function Home() {
       setIsDraftSaving(false);
       setSelectedEvent(null);
 
-      const startDayKey = format(startDate, "yyyy-MM-dd");
-      setSelectedDays(new Set([startDayKey]));
       setIsSidebarOpen(true);
       ensureWeekVisible(getWeekIndexForDate(startDate));
     },

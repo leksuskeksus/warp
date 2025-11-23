@@ -30,7 +30,9 @@ export function CalendarDayCellEvent({
 
   const handleClick = (interactionEvent: MouseEvent<HTMLDivElement>) => {
     interactionEvent.stopPropagation();
-    onSelect?.(event);
+    if (!isDraft && onSelect) {
+      onSelect(event);
+    }
   };
 
   const handleKeyDown = (keyboardEvent: KeyboardEvent<HTMLDivElement>) => {
@@ -40,11 +42,14 @@ export function CalendarDayCellEvent({
 
     keyboardEvent.preventDefault();
     keyboardEvent.stopPropagation();
-    onSelect?.(event);
+    if (!isDraft && onSelect) {
+      onSelect(event);
+    }
   };
 
+  const isDraft = event.id.startsWith("draft-");
   const palette = getEventTypePalette(event.type, isSelected);
-  const isInteractive = Boolean(onSelect);
+  const isInteractive = Boolean(onSelect) && !isDraft; // Draft events are not interactive
   const shouldBeFullyOpaque = isSelected || isPartOfSelectedRecurringSeries;
   const shouldReduceOpacity = hasSelectedEvent && !shouldBeFullyOpaque;
   const paletteStyle: CSSProperties = {
@@ -70,6 +75,7 @@ export function CalendarDayCellEvent({
       style={paletteStyle}
       className={cn(
         "flex h-[20px] items-center gap-[6px] rounded-sm bg-[var(--event-bg)] px-[4px] text-tag text-[var(--event-fg)] leading-none outline-none transition",
+        isDraft && "opacity-60 border border-dashed border-[var(--event-fg)]/30",
         isInteractive ? "cursor-pointer hover:brightness-105 active:brightness-95" : "cursor-default",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--event-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--event-bg)]",
         isSelected && "shadow-[0_0_0_2px_rgba(255,255,255,0.55)]",

@@ -199,18 +199,20 @@ export function CalendarEventForm({
               <div className="flex flex-1 items-center gap-[8px] max-w-[420px]">
                 <Input
                   id={startDateId}
-                  type="date"
+                  type="text"
                   value={values.startDate}
                   onChange={handleChange("startDate")}
                   disabled={isSaving}
+                  placeholder="YYYY-MM-DD"
                   className="flex-1"
                 />
                 <Input
                   id={startTimeId}
-                  type="time"
+                  type="text"
                   value={values.startTime}
                   onChange={handleChange("startTime")}
                   disabled={isSaving}
+                  placeholder="HH:MM"
                   className="w-[120px]"
                 />
               </div>
@@ -224,18 +226,20 @@ export function CalendarEventForm({
               <div className="flex flex-1 items-center gap-[8px] max-w-[420px]">
                 <Input
                   id={endDateId}
-                  type="date"
+                  type="text"
                   value={values.endDate}
                   onChange={handleChange("endDate")}
                   disabled={isSaving}
+                  placeholder="YYYY-MM-DD"
                   className="flex-1"
                 />
                 <Input
                   id={endTimeId}
-                  type="time"
+                  type="text"
                   value={values.endTime}
                   onChange={handleChange("endTime")}
                   disabled={isSaving}
+                  placeholder="HH:MM"
                   className="w-[120px]"
                 />
               </div>
@@ -310,25 +314,25 @@ export function CalendarEventForm({
           </>
         ) : (
           /* Fallback for other event types - keep existing layout */
-          <section className="flex flex-col gap-[12px]">
-            <label htmlFor={typeSelectId} className="flex flex-col gap-[6px]">
-              <span className="text-tag font-semibold uppercase tracking-[0.12em] text-fg3">
-                Event type
-              </span>
-              <Select
-                id={typeSelectId}
-                value={values.type}
+        <section className="flex flex-col gap-[12px]">
+          <label htmlFor={typeSelectId} className="flex flex-col gap-[6px]">
+            <span className="text-tag font-semibold uppercase tracking-[0.12em] text-fg3">
+              Event type
+            </span>
+            <Select
+              id={typeSelectId}
+              value={values.type}
                 onChange={handleChange("type")}
-                disabled={isSaving}
-              >
-                {EVENT_TYPE_OPTIONS.map((type) => (
-                  <option key={type} value={type}>
-                    {EVENT_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          </section>
+              disabled={isSaving}
+            >
+              {EVENT_TYPE_OPTIONS.map((type) => (
+                <option key={type} value={type}>
+                  {EVENT_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </section>
         )}
       </div>
     </form>
