@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties, KeyboardEvent, MouseEvent } from "react";
+import { CSSProperties, KeyboardEvent, MouseEvent, useEffect, useState } from "react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/cn";
@@ -22,6 +22,12 @@ export function CalendarDayCellEvent({
   hasSelectedEvent = false,
   onSelect,
 }: CalendarDayCellEventProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const handleClick = (interactionEvent: MouseEvent<HTMLDivElement>) => {
     interactionEvent.stopPropagation();
     onSelect?.(event);
@@ -37,7 +43,7 @@ export function CalendarDayCellEvent({
     onSelect?.(event);
   };
 
-  const palette = getEventTypePalette(event.type);
+  const palette = getEventTypePalette(event.type, isSelected);
   const isInteractive = Boolean(onSelect);
   const shouldBeFullyOpaque = isSelected || isPartOfSelectedRecurringSeries;
   const shouldReduceOpacity = hasSelectedEvent && !shouldBeFullyOpaque;
@@ -50,6 +56,11 @@ export function CalendarDayCellEvent({
   };
 
   const shouldShowTime = event.isAllDay || event.title.length <= 18;
+  const timeDisplay = event.isAllDay 
+    ? "All day"
+    : isMounted
+      ? format(event.startsAt, "h:mm a")
+      : "";
 
   return (
     <div
@@ -73,7 +84,7 @@ export function CalendarDayCellEvent({
       </span>
       {shouldShowTime && (
         <span className="ml-auto shrink-0 whitespace-nowrap text-[var(--event-muted)]">
-          {event.isAllDay ? "All day" : format(event.startsAt, "h:mm a")}
+          {timeDisplay}
         </span>
       )}
     </div>

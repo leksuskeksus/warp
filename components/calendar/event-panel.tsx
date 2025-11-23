@@ -4,6 +4,7 @@ import { MouseEvent, useMemo } from "react";
 
 import { HydratedCalendarEvent } from "@/lib/events-store";
 import { formatEventSchedule, getEventTypeLabel } from "@/lib/calendar";
+import { CalendarPerson } from "@/lib/people-store";
 
 import type { CalendarEventFormValues } from "./event-form";
 import { CalendarEventForm } from "./event-form";
@@ -23,6 +24,7 @@ type CalendarEventPanelProps =
       isSaving?: boolean;
       onValidationChange?: (isValid: boolean) => void;
       onSubmitRef?: (submitFn: () => void) => void;
+      people?: CalendarPerson[];
     };
 
 export function CalendarEventPanel(props: CalendarEventPanelProps) {
@@ -113,6 +115,7 @@ function CalendarEventPanelEdit({
   isSaving,
   onValidationChange,
   onSubmitRef,
+  people,
 }: {
   initialValues: CalendarEventFormValues;
   onSubmit?: (values: CalendarEventFormValues) => void;
@@ -120,6 +123,7 @@ function CalendarEventPanelEdit({
   isSaving?: boolean;
   onValidationChange?: (isValid: boolean) => void;
   onSubmitRef?: (submitFn: () => void) => void;
+  people?: CalendarPerson[];
 }) {
   return (
     <CalendarEventForm
@@ -128,6 +132,7 @@ function CalendarEventPanelEdit({
       isSaving={isSaving}
       onValidationChange={onValidationChange}
       onSubmitRef={onSubmitRef}
+      people={people}
     />
   );
 }

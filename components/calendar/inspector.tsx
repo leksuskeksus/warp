@@ -151,6 +151,7 @@ export function CalendarInspector({
           onSubmitRef={(submitFn) => {
             formSubmitRef.current = submitFn;
           }}
+          people={people}
         />
       ) : showEventDetails && selectedEvent ? (
         <CalendarEventPanel

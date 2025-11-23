@@ -43,9 +43,21 @@ const DARK_MUTED = "rgba(20,20,20,0.7)";
 const DARK_SUBTLE = "rgba(20,20,20,0.54)";
 const DARK_RING = "rgba(16,16,16,0.24)";
 
-export function getEventTypePalette(type: CalendarEventType): EventColorPalette {
+export function getEventTypePalette(type: CalendarEventType, isSelected: boolean = false): EventColorPalette {
   const { background, tone } = EVENT_TYPE_COLOR_MAP[type];
 
+  // Unselected state: lighter, less saturated colors with black text
+  if (!isSelected) {
+    return {
+      background: `color-mix(in srgb, ${background} 20%, white)`,
+      foreground: "var(--color-black)",
+      muted: "rgba(0,0,0,0.7)",
+      subtle: "rgba(0,0,0,0.54)",
+      ring: "rgba(0,0,0,0.24)",
+    };
+  }
+
+  // Selected state: keep current appearance
   if (tone === "light") {
     return {
       background,

@@ -876,15 +876,15 @@ export default function Home() {
       />
 
       <main className="relative flex flex-1 min-h-0 flex-col overflow-hidden border border-border bg-bg">
-        <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[51px] items-center justify-between gap-[20px] px-[32px]">
+        <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[51px] items-center px-[32px]">
           <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[rgba(255,255,255,1)] to-[rgba(255,255,255,0)]" />
           <div className="relative z-20 flex items-center">
             <span className="pointer-events-none text-body-2 font-medium text-fg text-left">
               {visibleMonthLabel}
             </span>
           </div>
-          <div className="relative z-20 flex flex-1 items-center justify-center">
-            <div className="pointer-events-auto flex h-[35px] w-full max-w-[420px] items-center gap-[10px] rounded-md border border-border bg-bg px-[14px] transition-[border,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40">
+          <div className="pointer-events-auto absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2">
+            <div className="flex h-[35px] w-[420px] items-center gap-[10px] rounded-md border border-border bg-bg px-[14px] transition-[border,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40">
               <svg
                 aria-hidden="true"
                 width="18"

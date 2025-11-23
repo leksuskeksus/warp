@@ -22,7 +22,7 @@ export function CalendarInspectorEvent({
     onSelect?.(event);
   };
 
-  const palette = getEventTypePalette(event.type);
+  const palette = getEventTypePalette(event.type, isSelected);
   const paletteStyle: CSSProperties = {
     "--event-bg": palette.background,
     "--event-fg": palette.foreground,
