@@ -15,6 +15,13 @@ import type { CalendarDay } from "@/lib/calendar";
 
 import { CalendarDayCell } from "./day-cell";
 
+export type CalendarWeekViewportEvent = {
+  weekIndex: number;
+  date: Date;
+  isIntersecting: boolean;
+  relativeTop: number;
+};
+
 type CalendarWeekRange = {
   start: number;
   end: number;
@@ -29,7 +36,9 @@ type CalendarViewProps = {
   onEventSelect: (event: HydratedCalendarEvent) => void;
   onRequestRangeChange: (direction: "up" | "down") => void;
   scrollContainerRef: MutableRefObject<HTMLDivElement | null>;
-  onTodayNode?: (node: HTMLButtonElement | null) => void;
+  todayWeekIndex: number;
+  onTodayWeekStartNode?: (node: HTMLButtonElement | null) => void;
+  onWeekInView?: (event: CalendarWeekViewportEvent) => void;
 };
 
 export function CalendarView({
@@ -41,10 +50,13 @@ export function CalendarView({
   onEventSelect,
   onRequestRangeChange,
   scrollContainerRef,
-  onTodayNode,
+  todayWeekIndex,
+  onTodayWeekStartNode,
+  onWeekInView,
 }: CalendarViewProps) {
   const topSentinelRef = useRef<HTMLButtonElement | null>(null);
   const bottomSentinelRef = useRef<HTMLButtonElement | null>(null);
+  const weekStartNodesRef = useRef<Map<number, HTMLButtonElement>>(new Map());
 
   const hasMoreUp = weekRange.start > 0;
   const hasMoreDown = weekRange.end < totalWeeks;
@@ -55,6 +67,15 @@ export function CalendarView({
 
   const setBottomSentinel = useCallback((node: HTMLButtonElement | null) => {
     bottomSentinelRef.current = node;
+  }, []);
+
+  const registerWeekStartNode = useCallback((weekIndex: number, node: HTMLButtonElement | null) => {
+    const map = weekStartNodesRef.current;
+    if (node) {
+      map.set(weekIndex, node);
+    } else {
+      map.delete(weekIndex);
+    }
   }, []);
 
   useEffect(() => {
@@ -101,6 +122,51 @@ export function CalendarView({
     weekRange.end,
   ]);
 
+  useEffect(() => {
+    if (!onWeekInView) {
+      return;
+    }
+
+    const root = scrollContainerRef.current;
+    if (!root) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const rootRect = root.getBoundingClientRect();
+
+        entries.forEach((entry) => {
+          const target = entry.target as HTMLElement;
+          const weekIndexAttr = target.dataset.weekIndex;
+          const dayMsAttr = target.dataset.dayMs;
+          if (!weekIndexAttr || !dayMsAttr) {
+            return;
+          }
+          const weekIndex = Number.parseInt(weekIndexAttr, 10);
+          const date = new Date(Number(dayMsAttr));
+          const relativeTop = entry.boundingClientRect.top - rootRect.top;
+
+          onWeekInView({
+            weekIndex,
+            date,
+            isIntersecting: entry.isIntersecting,
+            relativeTop,
+          });
+        });
+      },
+      {
+        root,
+        threshold: [0],
+        rootMargin: "0px 0px -80% 0px",
+      },
+    );
+
+    weekStartNodesRef.current.forEach((node) => observer.observe(node));
+
+    return () => observer.disconnect();
+  }, [onWeekInView, scrollContainerRef, weekRange.start, weekRange.end]);
+
   const handleDayClick = (date: Date) => (event: MouseEvent<HTMLButtonElement>) => {
     onDaySelect(date, event.shiftKey);
   };
@@ -131,6 +197,7 @@ export function CalendarView({
         const shouldAttachTop = hasMoreUp && isStartOfWeek && day.weekIndex === weekRange.start;
         const shouldAttachBottom =
           hasMoreDown && isEndOfWeek && day.weekIndex === weekRange.end - 1;
+        const isTodayWeekStart = isStartOfWeek && day.weekIndex === todayWeekIndex;
 
         if (!isWithinWindow) {
           return (
@@ -155,8 +222,15 @@ export function CalendarView({
               if (shouldAttachBottom) {
                 setBottomSentinel(node);
               }
-              if (day.isToday) {
-                onTodayNode?.(node);
+              if (isTodayWeekStart) {
+                onTodayWeekStartNode?.(node);
+              }
+              if (isStartOfWeek) {
+                registerWeekStartNode(day.weekIndex, node);
+                if (node) {
+                  node.dataset.weekIndex = String(day.weekIndex);
+                  node.dataset.dayMs = String(day.date.getTime());
+                }
               }
             }}
             className={cn(

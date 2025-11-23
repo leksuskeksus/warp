@@ -3,7 +3,14 @@
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { addWeeks, differenceInCalendarDays, format, parseISO, startOfDay, startOfWeek } from "date-fns";
+import {
+  addWeeks,
+  differenceInCalendarDays,
+  format,
+  parseISO,
+  startOfDay,
+  startOfWeek,
+} from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
@@ -13,7 +20,7 @@ import {
   useEvents,
   WEEK_START as EVENTS_WEEK_START,
 } from "@/lib/events-store";
-import { CalendarView } from "@/components/calendar/calendar-view";
+import { CalendarView, CalendarWeekViewportEvent } from "@/components/calendar/calendar-view";
 import type { CalendarDay } from "@/lib/calendar";
 import { buildCalendarDays } from "@/lib/calendar";
 import { CalendarInspector, CalendarInspectorSection } from "@/components/calendar/inspector";
@@ -24,6 +31,7 @@ const TOTAL_WEEKS_BACKWARD = 36;
 const TOTAL_WEEKS = TOTAL_WEEKS_FORWARD + TOTAL_WEEKS_BACKWARD;
 const INITIAL_VISIBLE_WEEKS = 12;
 const WEEK_VISIBILITY_BUFFER = 6;
+const TOP_SCROLL_OFFSET = 63;
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -37,10 +45,14 @@ export default function Home() {
     end: Math.min(TOTAL_WEEKS, TOTAL_WEEKS_BACKWARD + INITIAL_VISIBLE_WEEKS),
   }));
   const calendarScrollRef = useRef<HTMLDivElement | null>(null);
-  const todayNodeRef = useRef<HTMLButtonElement | null>(null);
+  const todayWeekStartNodeRef = useRef<HTMLButtonElement | null>(null);
   const hasScrolledToTodayRef = useRef(false);
+  const [visibleMonthLabel, setVisibleMonthLabel] = useState(() =>
+    format(new Date(), "MMMM yyyy"),
+  );
   const localTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
   const selectedEventId = selectedEvent?.id ?? null;
+  const weekViewportMapRef = useRef<Map<number, { top: number; date: Date }>>(new Map());
 
   const today = useMemo(() => {
     const now = new Date();
@@ -112,6 +124,11 @@ export default function Home() {
     [calendarBaseDate],
   );
 
+  const todayWeekIndex = useMemo(
+    () => getWeekIndexForDate(today),
+    [getWeekIndexForDate, today],
+  );
+
   const ensureWeekVisible = useCallback(
     (weekIndex: number) => {
       if (!Number.isFinite(weekIndex)) {
@@ -145,21 +162,83 @@ export default function Home() {
     [],
   );
 
-  const handleTodayNode = useCallback((node: HTMLButtonElement | null) => {
-    todayNodeRef.current = node;
+  const handleTodayWeekStartNode = useCallback((node: HTMLButtonElement | null) => {
+    todayWeekStartNodeRef.current = node;
   }, []);
+
+  const handleWeekInView = useCallback(
+    ({ weekIndex, date, isIntersecting, relativeTop }: CalendarWeekViewportEvent) => {
+      const map = weekViewportMapRef.current;
+      const adjustedTop = relativeTop - TOP_SCROLL_OFFSET;
+
+      if (isIntersecting) {
+        map.set(weekIndex, { top: adjustedTop, date });
+      } else {
+        map.delete(weekIndex);
+      }
+
+      if (map.size === 0) {
+        setVisibleMonthLabel(format(date, "MMMM yyyy"));
+        return;
+      }
+
+      let candidateTop = Number.POSITIVE_INFINITY;
+      let candidateDate: Date | null = null;
+
+      map.forEach(({ top, date: entryDate }) => {
+        if (candidateDate === null) {
+          candidateTop = top;
+          candidateDate = entryDate;
+          return;
+        }
+
+        if (candidateTop >= 0 && top >= 0) {
+          if (top < candidateTop) {
+            candidateTop = top;
+            candidateDate = entryDate;
+          }
+          return;
+        }
+
+        if (candidateTop >= 0 && top < 0) {
+          return;
+        }
+
+        if (candidateTop < 0 && top >= 0) {
+          candidateTop = top;
+          candidateDate = entryDate;
+          return;
+        }
+
+        if (top > candidateTop) {
+          candidateTop = top;
+          candidateDate = entryDate;
+        }
+      });
+
+      if (candidateDate) {
+        setVisibleMonthLabel(format(candidateDate, "MMMM yyyy"));
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (hasScrolledToTodayRef.current) {
       return;
     }
 
-    const node = todayNodeRef.current;
-    if (!node) {
+    const container = calendarScrollRef.current;
+    const node = todayWeekStartNodeRef.current;
+    if (!container || !node) {
       return;
     }
 
-    node.scrollIntoView({ block: "center", behavior: "auto" });
+    const targetTop = Math.max(0, node.offsetTop - TOP_SCROLL_OFFSET);
+    container.scrollTo({
+      top: targetTop,
+      behavior: "auto",
+    });
     hasScrolledToTodayRef.current = true;
   }, [calendarDays]);
 
@@ -384,7 +463,10 @@ export default function Home() {
       <main className="relative flex flex-1 min-h-0 flex-col overflow-hidden border border-border bg-bg">
         <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[51px] items-center justify-between gap-[20px] px-[32px]">
           <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[rgba(255,255,255,1)] to-[rgba(255,255,255,0)]" />
-          <div className="relative z-20 flex flex-1 justify-center">
+          <div className="relative z-20 flex flex-1 items-center justify-center gap-[16px]">
+            <span className="pointer-events-none text-body-2 font-medium text-fg text-left">
+              {visibleMonthLabel}
+            </span>
             <div className="pointer-events-auto flex h-[35px] w-full max-w-[420px] items-center gap-[10px] rounded-md border border-border bg-bg px-[14px] transition-[border,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40">
               <svg
                 aria-hidden="true"
@@ -447,9 +529,11 @@ export default function Home() {
               onEventSelect={handleEventSelect}
               onRequestRangeChange={expandWeekRange}
               scrollContainerRef={calendarScrollRef}
-              onTodayNode={handleTodayNode}
+              todayWeekIndex={todayWeekIndex}
+              onTodayWeekStartNode={handleTodayWeekStartNode}
+              onWeekInView={handleWeekInView}
             />
-          </div>
+                </div>
 
           <aside className={cn(
             "pointer-events-none absolute bottom-[7px] right-[7px] top-0 flex w-[288px] pt-[7px]",

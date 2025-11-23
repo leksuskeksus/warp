@@ -14,6 +14,7 @@
 - ✅ Base styling updated to match Warp tokens while preserving responsive flex layout.
 - ✅ Calendar UI refactored into modular components (`CalendarView`, `CalendarDayCell`, `CalendarInspector`, `CalendarEventDetails`) with shared helpers in `lib/calendar.ts`, enabling richer interactions and multi-day span handling.
 - ✅ Main calendar view virtualized via week windowing with intersection-buffered pagination, reducing DOM weight while preserving continuous scroll.
+- ✅ Extended calendar range (36 weeks prior) while auto-centering on the current week, added buffered virtualization with month-aware viewport tracking, and surfaced the visible month label alongside the search bar for contextual navigation cues.
 
 ## Next Focus Areas
 1. Month navigation controls and virtualized scroll for long horizons.
