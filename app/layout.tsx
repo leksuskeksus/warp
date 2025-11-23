@@ -3,7 +3,7 @@ import { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Warp Checkout",
+  title: "Calendar",
   description: "Warp Pro checkout page",
 };
 

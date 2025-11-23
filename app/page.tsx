@@ -3,97 +3,44 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  addDays,
-  format,
-  isSameDay,
-  startOfMonth,
-  startOfWeek,
-} from "date-fns";
+import { addDays, format, isSameDay, startOfMonth, startOfWeek } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
+import {
+  CalendarEvent as StoredCalendarEvent,
+  useEvents,
+  WEEK_START as EVENTS_WEEK_START,
+} from "@/lib/events-store";
 
-const WEEK_START = 0;
+const WEEK_START = EVENTS_WEEK_START;
 const WEEKS_TO_RENDER = 156;
-
-type CalendarEventType = "meeting" | "reminder" | "out-of-office" | "milestone" | "other";
-
-type CalendarParticipant = {
-  id: string;
-  name: string;
-};
-
-type CalendarEvent = {
-  id: string;
-  name: string;
-  startsAt: Date;
-  endsAt: Date;
-  isAllDay: boolean;
-  type: CalendarEventType;
-  participants: CalendarParticipant[];
-  notes?: string;
-};
 
 type CalendarDay = {
   date: Date;
   label: string;
   isToday: boolean;
   isMonthStart: boolean;
-  events: CalendarEvent[];
+  events: HydratedCalendarEvent[];
 };
 
-const demoEvents: CalendarEvent[] = [
-  {
-    id: "event-1",
-    name: "Weekly sync",
-    startsAt: addDays(startOfWeek(new Date(), { weekStartsOn: WEEK_START }), 1),
-    endsAt: addDays(startOfWeek(new Date(), { weekStartsOn: WEEK_START }), 1),
-    isAllDay: false,
-    type: "meeting",
-    participants: [
-      { id: "p-1", name: "Alexey Primechaev" },
-      { id: "p-2", name: "Rahul Sonwalkar" },
-    ],
-    notes: "Review sprint progress and blockers.",
-  },
-  {
-    id: "event-2",
-    name: "Product planning",
-    startsAt: addDays(startOfWeek(new Date(), { weekStartsOn: WEEK_START }), 2),
-    endsAt: addDays(startOfWeek(new Date(), { weekStartsOn: WEEK_START }), 2),
-    isAllDay: false,
-    type: "meeting",
-    participants: [
-      { id: "p-1", name: "Alexey Primechaev" },
-      { id: "p-3", name: "John Doe" },
-      { id: "p-4", name: "Jane Smith" },
-    ],
-  },
-  {
-    id: "event-3",
-    name: "Company holiday",
-    startsAt: addDays(startOfWeek(new Date(), { weekStartsOn: WEEK_START }), 4),
-    endsAt: addDays(startOfWeek(new Date(), { weekStartsOn: WEEK_START }), 4),
-    isAllDay: true,
-    type: "out-of-office",
-    participants: [],
-  },
-  {
-    id: "event-4",
-    name: "Launch milestone",
-    startsAt: addDays(startOfWeek(new Date(), { weekStartsOn: WEEK_START }), 7),
-    endsAt: addDays(startOfWeek(new Date(), { weekStartsOn: WEEK_START }), 7),
-    isAllDay: true,
-    type: "milestone",
-    participants: [{ id: "p-5", name: "Marketing Team" }],
-    notes: "Finalize launch assets and marketing pushes.",
-  },
-];
+type HydratedCalendarEvent = Omit<StoredCalendarEvent, "startsAt" | "endsAt"> & {
+  startsAt: Date;
+  endsAt: Date;
+};
 
-function generateCalendarDays(totalWeeks: number, today: Date): CalendarDay[] {
+function normalizeEvent(event: StoredCalendarEvent): HydratedCalendarEvent {
+  return {
+    ...event,
+    startsAt: new Date(event.startsAt),
+    endsAt: new Date(event.endsAt),
+  };
+}
+
+function generateCalendarDays(totalWeeks: number, today: Date, events: StoredCalendarEvent[]): CalendarDay[] {
   const firstVisibleDay = startOfWeek(today, { weekStartsOn: WEEK_START });
   const totalDays = totalWeeks * 7;
+  const normalizedEvents = events.map(normalizeEvent);
 
   return Array.from({ length: totalDays }, (_, index) => {
     const dayDate = addDays(firstVisibleDay, index);
@@ -103,13 +50,14 @@ function generateCalendarDays(totalWeeks: number, today: Date): CalendarDay[] {
       label: format(dayDate, "d"),
       isToday: isSameDay(dayDate, today),
       isMonthStart: isSameDay(dayDate, startOfMonth(dayDate)),
-      events: demoEvents.filter((event) => isSameDay(event.startsAt, dayDate)),
+      events: normalizedEvents.filter((event) => isSameDay(event.startsAt, dayDate)),
     };
   });
 }
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [persistedEvents] = useEvents();
 
   const calendarDays = useMemo(() => {
     const now = new Date();
@@ -119,8 +67,8 @@ export default function Home() {
       now.getDate(),
     );
 
-    return generateCalendarDays(WEEKS_TO_RENDER, normalizedToday);
-  }, []);
+    return generateCalendarDays(WEEKS_TO_RENDER, normalizedToday, persistedEvents);
+  }, [persistedEvents]);
 
   const toggleSidebar = () => setIsSidebarOpen((previous) => !previous);
 
@@ -130,7 +78,7 @@ export default function Home() {
         return;
       }
 
-      if (!(event.key === "s" || event.key === "S")) {
+      if (!(event.key === "i" || event.key === "I")) {
         return;
       }
 
@@ -231,9 +179,9 @@ export default function Home() {
               onClick={toggleSidebar}
               className="flex h-[35px] items-center rounded-md px-[14px] pr-[7px] text-button-2 font-medium"
             >
-              <span>Sidebar</span>
+              <span>Inspector</span>
               <span className="ml-[7px] flex size-[18px] items-center justify-center rounded-[6px] border border-border bg-bg2 text-caption font-semibold leading-none">
-                S
+                I
               </span>
             </Button>
                 </div>
@@ -270,19 +218,27 @@ export default function Home() {
                     )}
                   </div>
                   <div className="flex flex-1 flex-col gap-[6px] overflow-hidden">
-                    {day.events.map((event) => (
-                      <div
-                        key={event.id}
-                        className="flex h-[20px] items-center gap-[6px] rounded-sm border border-border bg-bg2/80 px-[6px] text-tag leading-none"
-                      >
-                        <span className="truncate text-fg">{event.name}</span>
-                        <span className="ml-auto text-fg3">
-                          {event.isAllDay
-                            ? "All day"
-                            : format(event.startsAt, "MMM d")}
-                        </span>
-                      </div>
-                    ))}
+                    {day.events.map((event) => {
+                      const shouldShowTime = event.isAllDay || event.name.length <= 18;
+
+                      return (
+                        <div
+                          key={event.id}
+                          className="flex h-[20px] items-center gap-[6px] rounded-sm border border-border bg-bg2/80 px-[6px] text-tag leading-none"
+                        >
+                          <span className="min-w-0 overflow-hidden whitespace-nowrap text-fg">
+                            {event.name}
+                          </span>
+                          {shouldShowTime && (
+                            <span className="ml-auto shrink-0 whitespace-nowrap text-fg3">
+                              {event.isAllDay
+                                ? "All day"
+                                : format(event.startsAt, "h:mm a")}
+                            </span>
+                          )}
+                    </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
