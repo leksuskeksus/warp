@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   addDays,
@@ -11,6 +11,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
 
 const WEEK_START = 0;
@@ -55,6 +56,33 @@ export default function Home() {
 
   const toggleSidebar = () => setIsSidebarOpen((previous) => !previous);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      if (!(event.key === "s" || event.key === "S")) {
+        return;
+      }
+
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+
+      event.preventDefault();
+      setIsSidebarOpen((previous) => !previous);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
     <div className="force-light flex h-screen overflow-hidden bg-bg text-g8">
       <div className="max-tablet:hidden sticky inset-0 right-auto flex h-screen min-w-[250px] flex-col justify-between bg-g98 p-[20px]">
@@ -93,19 +121,57 @@ export default function Home() {
         </div>
       </div>
 
-      <main className="relative flex flex-1 overflow-hidden border border-border bg-bg">
-        <div className="relative flex flex-1">
-          <div className="pointer-events-none absolute right-[24px] top-[24px] z-10">
+      <main className="relative flex flex-1 flex-col overflow-hidden border border-border bg-bg">
+        <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex h-[51px] items-center justify-between gap-[20px] px-[32px] shadow-[0_8px_15px_-12px_rgba(0,0,0,0.12)]">
+          <div className="absolute inset-0 -z-10 bg-gradient-to-b from-[rgba(255,255,255,1)] to-[rgba(255,255,255,0)]" />
+          <div className="pointer-events-auto flex flex-1 justify-center">
+          <div className="flex flex-1 justify-center">
+            <div className="flex h-[35px] w-full max-w-[420px] items-center gap-[10px] rounded-md border border-border bg-bg px-[14px] transition-[border,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40">
+              <svg
+                aria-hidden="true"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-fg3"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+              <Input
+                type="search"
+                placeholder="Search"
+                className="h-full flex-1 border-none bg-transparent p-0 text-body-2 text-fg placeholder:text-fg4 focus-visible:border-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
+              <div className="flex items-center gap-[3px]">
+                <span className="flex size-[18px] items-center justify-center rounded-[6px] border border-border bg-bg2 text-caption font-semibold leading-none">
+                  ⌘
+                </span>
+                <span className="flex size-[18px] items-center justify-center rounded-[6px] border border-border bg-bg2 text-caption font-semibold leading-none">
+                  K
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="pointer-events-auto flex items-center justify-end">
             <Button
               variant="secondary"
               size="sm"
-              className="pointer-events-auto"
               onClick={toggleSidebar}
+              className="flex h-[35px] items-center rounded-md px-[14px] pr-[7px] text-button-2 font-medium"
             >
-              {isSidebarOpen ? "Hide details" : "Show details"}
+              <span>{isSidebarOpen ? "Events" : "Events"}</span>
+              <span className="ml-[7px] flex size-[18px] items-center justify-center rounded-[6px] border border-border bg-bg2 text-caption font-semibold leading-none">
+                S
+              </span>
             </Button>
-                    </div>
-
+          </div>
+        </header>
+        <div className="relative flex flex-1 pt-[51px]">
           <div
             className={cn(
               "scrollbar-hide flex-1 overflow-y-auto bg-bg px-[12px] py-[24px] transition-[margin-right] duration-200 ease-out",
