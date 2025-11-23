@@ -15,12 +15,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
 import {
+  CalendarEvent,
+  CalendarParticipant,
   HydratedCalendarEvent,
+  hydrateEvent,
   hydrateEvents,
   useEvents,
   WEEK_START as EVENTS_WEEK_START,
 } from "@/lib/events-store";
 import { CalendarView, CalendarWeekViewportEvent } from "@/components/calendar/calendar-view";
+import type { CalendarDayCellCreateEventPayload } from "@/components/calendar/day-cell";
 import type { CalendarDay } from "@/lib/calendar";
 import { buildCalendarDays } from "@/lib/calendar";
 import { CalendarInspector, CalendarInspectorSection } from "@/components/calendar/inspector";
@@ -33,9 +37,15 @@ const INITIAL_VISIBLE_WEEKS = 12;
 const WEEK_VISIBILITY_BUFFER = 6;
 const TOP_SCROLL_OFFSET = 63;
 
+const DEFAULT_LOCAL_OWNER: CalendarParticipant = {
+  id: "local-owner",
+  name: "You",
+  role: "organizer",
+};
+
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [persistedEvents] = useEvents();
+  const [persistedEvents, setPersistedEvents] = useEvents();
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
   const [selectedEvent, setSelectedEvent] = useState<HydratedCalendarEvent | null>(null);
   const selectedDaysRef = useRef(selectedDays);
@@ -221,6 +231,42 @@ export default function Home() {
       }
     },
     [],
+  );
+
+  const handleCreateEvent = useCallback(
+    ({ start, end }: CalendarDayCellCreateEventPayload) => {
+      const timestamp = new Date().toISOString();
+      const newEvent: CalendarEvent = {
+        id: crypto.randomUUID(),
+        title: "New event",
+        startsAt: start.toISOString(),
+        endsAt: end.toISOString(),
+        isAllDay: false,
+        type: "company-event",
+        owner: { ...DEFAULT_LOCAL_OWNER },
+        attendees: [],
+        timeZone: localTimeZone,
+        source: { provider: "local" },
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+
+      const nextEvents = [...persistedEvents, newEvent];
+      setPersistedEvents(nextEvents);
+
+      const hydratedNewEvent = hydrateEvent(newEvent);
+      setSelectedEvent(hydratedNewEvent);
+      setSelectedDays(new Set([format(start, "yyyy-MM-dd")]));
+      setIsSidebarOpen(true);
+      ensureWeekVisible(getWeekIndexForDate(start));
+    },
+    [
+      ensureWeekVisible,
+      getWeekIndexForDate,
+      localTimeZone,
+      persistedEvents,
+      setPersistedEvents,
+    ],
   );
 
   useEffect(() => {
@@ -463,10 +509,12 @@ export default function Home() {
       <main className="relative flex flex-1 min-h-0 flex-col overflow-hidden border border-border bg-bg">
         <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[51px] items-center justify-between gap-[20px] px-[32px]">
           <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[rgba(255,255,255,1)] to-[rgba(255,255,255,0)]" />
-          <div className="relative z-20 flex flex-1 items-center justify-center gap-[16px]">
+          <div className="relative z-20 flex items-center">
             <span className="pointer-events-none text-body-2 font-medium text-fg text-left">
               {visibleMonthLabel}
             </span>
+          </div>
+          <div className="relative z-20 flex flex-1 items-center justify-center">
             <div className="pointer-events-auto flex h-[35px] w-full max-w-[420px] items-center gap-[10px] rounded-md border border-border bg-bg px-[14px] transition-[border,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40">
               <svg
                 aria-hidden="true"
@@ -489,10 +537,10 @@ export default function Home() {
                 className="h-full flex-1 border-none bg-transparent p-0 text-body-2 text-fg placeholder:text-fg4 focus-visible:border-none focus-visible:ring-0 focus-visible:ring-offset-0"
               />
               <div className="flex items-center gap-[3px]">
-                <span className="flex size-[18px] items-center justify-center rounded-[6px] border border-border bg-bg2 text-caption font-semibold leading-none">
+                <span className="flex size-[18px] items-center justify-center rounded-[6px] border border-border bg-bg text-caption font-semibold leading-none">
                   ⌘
                         </span>
-                <span className="flex size-[18px] items-center justify-center rounded-[6px] border border-border bg-bg2 text-caption font-semibold leading-none">
+                <span className="flex size-[18px] items-center justify-center rounded-[6px] border border-border bg-bg text-caption font-semibold leading-none">
                   K
                         </span>
                       </div>
@@ -506,7 +554,7 @@ export default function Home() {
               className="flex h-[35px] items-center rounded-md px-[14px] pr-[7px] text-button-2 font-medium"
             >
               <span>Inspector</span>
-              <span className="ml-[7px] flex size-[18px] items-center justify-center rounded-[6px] border border-border bg-bg2 text-caption font-semibold leading-none">
+              <span className="ml-[7px] flex size-[18px] items-center justify-center rounded-[6px] border border-border bg-bg text-caption font-semibold leading-none">
                 I
               </span>
             </Button>
@@ -527,6 +575,7 @@ export default function Home() {
               selectedEventId={selectedEventId}
               onDaySelect={toggleDaySelection}
               onEventSelect={handleEventSelect}
+              onEventCreate={handleCreateEvent}
               onRequestRangeChange={expandWeekRange}
               scrollContainerRef={calendarScrollRef}
               todayWeekIndex={todayWeekIndex}

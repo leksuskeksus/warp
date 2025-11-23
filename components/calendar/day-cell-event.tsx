@@ -32,10 +32,9 @@ export function CalendarDayCellEvent({ event, isSelected, onSelect }: CalendarDa
 
   return (
     <div
-      role="button"
-      tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
+      data-calendar-day-event="true"
       className={cn(
         "flex h-[20px] cursor-pointer items-center gap-[6px] rounded-sm border border-border bg-bg2/80 px-[2px] text-tag leading-none outline-none transition",
         isSelected && "border-success bg-green-50",

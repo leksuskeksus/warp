@@ -13,7 +13,7 @@ import { cn } from "@/lib/cn";
 import { HydratedCalendarEvent } from "@/lib/events-store";
 import type { CalendarDay } from "@/lib/calendar";
 
-import { CalendarDayCell } from "./day-cell";
+import { CalendarDayCell, type CalendarDayCellCreateEventPayload } from "./day-cell";
 
 export type CalendarWeekViewportEvent = {
   weekIndex: number;
@@ -34,6 +34,7 @@ type CalendarViewProps = {
   selectedEventId?: string | null;
   onDaySelect: (date: Date, additive: boolean) => void;
   onEventSelect: (event: HydratedCalendarEvent) => void;
+  onEventCreate: (payload: CalendarDayCellCreateEventPayload) => void;
   onRequestRangeChange: (direction: "up" | "down") => void;
   scrollContainerRef: MutableRefObject<HTMLDivElement | null>;
   todayWeekIndex: number;
@@ -48,6 +49,7 @@ export function CalendarView({
   selectedEventId = null,
   onDaySelect,
   onEventSelect,
+  onEventCreate,
   onRequestRangeChange,
   scrollContainerRef,
   todayWeekIndex,
@@ -243,6 +245,7 @@ export function CalendarView({
                 day={day}
                 selectedEventId={selectedEventId}
                 onEventClick={onEventSelect}
+                onEventCreate={onEventCreate}
               />
             </div>
           </button>
