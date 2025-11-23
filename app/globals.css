@@ -275,6 +275,21 @@
   }
 }
 
+@layer utilities {
+  .font-inherit {
+    --tw-font-weight: inherit;
+    font-weight: inherit;
+  }
+
+  .tracking-inherit {
+    letter-spacing: inherit;
+  }
+
+  .text-tag {
+    --tw-font-weight: var(--text-tag--font-weight);
+  }
+}
+
 /* Utility classes */
 .transition-default {
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
