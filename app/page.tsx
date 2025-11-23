@@ -138,9 +138,9 @@ export default function Home() {
       </div>
 
       <main className="relative flex flex-1 min-h-0 flex-col overflow-hidden border border-border bg-bg">
-        <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex h-[51px] items-center justify-between gap-[20px] px-[32px]">
-          <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-[rgba(255,255,255,1)] to-[rgba(255,255,255,0)]" />
-          <div className="flex flex-1 justify-center">
+        <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[51px] items-center justify-between gap-[20px] px-[32px]">
+          <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[rgba(255,255,255,1)] to-[rgba(255,255,255,0)]" />
+          <div className="relative z-20 flex flex-1 justify-center">
             <div className="pointer-events-auto flex h-[35px] w-full max-w-[420px] items-center gap-[10px] rounded-md border border-border bg-bg px-[14px] transition-[border,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40">
               <svg
                 aria-hidden="true"
@@ -172,7 +172,7 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-          <div className="pointer-events-auto flex items-center justify-end">
+          <div className="pointer-events-auto relative z-20 flex items-center justify-end">
             <Button
               variant="secondary"
               size="sm"
@@ -245,16 +245,19 @@ export default function Home() {
         </div>
       </div>
 
-          <aside className="pointer-events-none absolute bottom-[7px] right-[7px] top-[58px] flex w-[288px] p-[7px]">
+          <aside className={cn(
+            "pointer-events-none absolute bottom-[7px] right-[7px] top-0 flex w-[288px] pt-[7px]",
+            isSidebarOpen ? "z-10" : "z-0",
+          )}>
             <div
               className={cn(
-                "flex h-full w-full flex-col overflow-hidden rounded-md border border-border bg-white transition-transform duration-200 ease-out",
+                "relative flex h-full w-full flex-col overflow-hidden rounded-md border border-border bg-white transition-transform duration-200 ease-out",
                 isSidebarOpen
                   ? "pointer-events-auto translate-x-0"
                   : "pointer-events-none translate-x-full",
               )}
             >
-              <div className="scrollbar-hide flex-1 overflow-y-auto p-[20px] text-body-2 text-fg3">
+              <div className="scrollbar-hide flex-1 overflow-y-auto px-[20px] pb-[20px] pt-[67px] text-body-2 text-fg3">
                 <p className="leading-relaxed">
                   Sidebar content placeholder. Toggle button in the top right collapses this
                   panel; when hidden the calendar expands to fill the full width.
