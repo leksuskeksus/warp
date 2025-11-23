@@ -1,0 +1,75 @@
+const warpColors = {
+  'g-8': 'var(--warp-color-g8)',
+  'g-12': 'var(--warp-color-g12)',
+  'g-16': 'var(--warp-color-g16)',
+  'g-24': 'var(--warp-color-g24)',
+  'g-32': 'var(--warp-color-g32)',
+  'g-48': 'var(--warp-color-g48)',
+  'g-64': 'var(--warp-color-g64)',
+  'g-88': 'var(--warp-color-g88)',
+  'g-92': 'var(--warp-color-g92)',
+  'g-94': 'var(--warp-color-g94)',
+  'g-96': 'var(--warp-color-g96)',
+  'g-98': 'var(--warp-color-g98)',
+  'blue-50': 'var(--warp-color-blue-50)',
+  'blue-500': 'var(--warp-color-blue-500)',
+  'blue-600': 'var(--warp-color-blue-600)',
+  'green-50': 'var(--warp-color-green-50)',
+  'green-100': 'var(--warp-color-green-100)',
+  'green-400': 'var(--warp-color-green-400)',
+  'green-500': 'var(--warp-color-green-500)',
+  'green-600': 'var(--warp-color-green-600)',
+  'green-700': 'var(--warp-color-green-700)',
+  'orange-50': 'var(--warp-color-orange-50)',
+  'orange-400': 'var(--warp-color-orange-400)',
+  'orange-500': 'var(--warp-color-orange-500)',
+  'orange-600': 'var(--warp-color-orange-600)',
+  'purple-50': 'var(--warp-color-purple-50)',
+  'purple-100': 'var(--warp-color-purple-100)',
+  'purple-600': 'var(--warp-color-purple-600)',
+  'purple-700': 'var(--warp-color-purple-700)',
+  'red-50': 'var(--warp-color-red-50)',
+  'red-400': 'var(--warp-color-red-400)',
+  'red-500': 'var(--warp-color-red-500)',
+  'red-600': 'var(--warp-color-red-600)',
+  'sky-50': 'var(--warp-color-sky-50)',
+  'sky-400': 'var(--warp-color-sky-400)',
+  'sky-500': 'var(--warp-color-sky-500)',
+  'sky-600': 'var(--warp-color-sky-600)',
+  'yellow-500': 'var(--warp-color-yellow-500)',
+  'yellow-600': 'var(--warp-color-yellow-600)',
+};
+
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  theme: {
+    extend: {
+      fontFamily: {
+        brand: [
+          'brandFont',
+          'brandFont Fallback',
+          'Macan',
+          'Arial',
+          'sans-serif',
+        ],
+      },
+      colors: {
+        warp: warpColors,
+      },
+      boxShadow: {
+        'warp-card': '0 30px 80px rgba(0,0,0,0.04)',
+      },
+      borderRadius: {
+        '3xl': '1.5rem',
+        '4xl': '2rem',
+      },
+    },
+  },
+  plugins: [],
+};

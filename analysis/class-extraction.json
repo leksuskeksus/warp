@@ -1,0 +1,185 @@
+{
+  "summary": {
+    "totalUniqueClasses": 190,
+    "componentPatterns": {
+      "buttons": 49,
+      "inputs": 15,
+      "selects": 0,
+      "textareas": 0
+    }
+  },
+  "categories": {
+    "customTokens": [
+      "bg-bg",
+      "bg-bg-disabled",
+      "bg-bg2",
+      "bg-divider",
+      "border-input",
+      "text-body-1",
+      "text-body-2",
+      "text-button-1",
+      "text-caption",
+      "text-fg-error",
+      "text-fg2",
+      "text-fg3",
+      "text-h4",
+      "text-input-1",
+      "text-tag"
+    ],
+    "typography": [
+      "font-book",
+      "font-inherit",
+      "font-medium",
+      "font-semibold",
+      "leading-relaxed",
+      "text-base",
+      "text-g8",
+      "text-left",
+      "text-right",
+      "tracking-inherit"
+    ],
+    "spacing": [
+      "gap-[10px]",
+      "gap-[15px]",
+      "gap-[20px]",
+      "gap-[30px]",
+      "gap-[3px]",
+      "gap-[50px]",
+      "gap-[7px]",
+      "h-[1px]",
+      "h-[30px]",
+      "h-[40px]",
+      "h-[50px]",
+      "h-screen",
+      "mb-[20px]",
+      "mb-[7px]",
+      "mt-[20px]",
+      "mt-[2px]",
+      "mt-[5px]",
+      "p-[15px]",
+      "p-[20px]",
+      "pb-0",
+      "pb-[30svh]",
+      "pb-[5px]",
+      "pb-[66svh]",
+      "pl-[1.5em]",
+      "pt-[100px]",
+      "pt-[5px]",
+      "px-[10px]",
+      "px-[17px]",
+      "px-[70px]",
+      "py-[30px]",
+      "py-[3px]",
+      "space-y-[5px]",
+      "w-full"
+    ],
+    "colors": [
+      "bg-g96"
+    ],
+    "layout": [
+      "absolute",
+      "fixed",
+      "flex",
+      "flex-1",
+      "flex-col",
+      "flex-none",
+      "hidden",
+      "inline-flex",
+      "relative",
+      "sticky"
+    ],
+    "responsive": [
+      "max-tablet:flex-col",
+      "max-tablet:gap-[10px]",
+      "max-tablet:hidden",
+      "max-tablet:mx-0",
+      "max-tablet:px-[30px]",
+      "max-tablet:text-caption"
+    ],
+    "pseudo": [
+      "disabled:cursor-not-allowed",
+      "disabled:text-fg4",
+      "hover:bg-background-alt",
+      "hover:brightness-100",
+      "hover:opacity-100",
+      "hover:opacity-60",
+      "hover:text-fg"
+    ],
+    "arbitrary": [
+      "-mx-[15px]",
+      "bottom-[15px]",
+      "data-[active=true]:!text-fg-btn-active",
+      "data-[active=true]:bg-bg-btn-active",
+      "data-[active=true]:hover:bg-bg-btn-active-hover",
+      "data-[active=true]:outline-transparent",
+      "file:h-[40px]",
+      "focus-visible:ring-[3px]",
+      "group-[&amp;:not(:has([data-slot=&quot;totals&quot;]))]/checkout:flex",
+      "has-[a]:underline",
+      "max-mobile-h:px-[15px]",
+      "max-w-[350px]",
+      "max-w-[700px]",
+      "min-w-[250px]",
+      "right-[15px]",
+      "size-[30px]",
+      "size-[40px]",
+      "transition-[color,box-shadow]"
+    ],
+    "group": [
+      "group/button",
+      "group/checkout"
+    ],
+    "data": []
+  },
+  "componentPatterns": {
+    "buttons": [
+      "text-left underline hover:text-fg...",
+      "cursor-pointer font-inherit tracking-inherit underline transition-default hover:opacity-60...",
+      "group/button relative inline-flex items-center justify-center gap-[3px] whitespace-nowrap rounded-md transition-all duration-0 shrink-0 cursor-pointer focus-visible:border-ring focus-visible:ring-ring/0 focus-visible:ring-0...",
+      "text-left underline hover:text-fg...",
+      "cursor-pointer font-inherit tracking-inherit underline transition-default hover:opacity-60..."
+    ],
+    "inputs": [
+      "border-input text-input-1 flex h-[40px] w-full min-w-0 rounded-md border bg-transparent py-[3px] px-[10px] text-base outline-none transition-[color,box-shadow] placeholder:text-fg4...",
+      "border-input text-input-1 flex h-[40px] w-full min-w-0 rounded-md border bg-transparent py-[3px] px-[10px] text-base outline-none transition-[color,box-shadow] placeholder:text-fg4...",
+      "border-input text-input-1 flex h-[40px] w-full min-w-0 rounded-md border bg-transparent py-[3px] px-[10px] text-base outline-none transition-[color,box-shadow] placeholder:text-fg4..."
+    ],
+    "selects": [],
+    "textareas": []
+  },
+  "themeExtensions": {
+    "borderColor": [
+      "input"
+    ],
+    "textColor": [
+      "fg-error",
+      "fg2",
+      "fg3"
+    ],
+    "backgroundColor": [
+      "bg",
+      "bg-disabled",
+      "bg2",
+      "divider"
+    ],
+    "ringColor": [],
+    "fontSize": [
+      "body-1",
+      "body-2",
+      "button-1",
+      "caption",
+      "h4",
+      "input-1",
+      "tag"
+    ],
+    "screens": [
+      "max-tablet"
+    ]
+  },
+  "fullComponentClasses": {
+    "button": "group/button relative inline-flex items-center justify-center gap-[3px] whitespace-nowrap rounded-md transition-all duration-0 shrink-0 cursor-pointer focus-visible:border-ring focus-visible:ring-ring/0 focus-visible:ring-0 data-[active=true]:bg-bg-btn-active data-[active=true]:outline-transparent data-[active=true]:!text-fg-btn-active data-[active=true]:hover:bg-bg-btn-active-hover [&amp;_svg]:stroke-[2.25px] [&amp;_svg]:-ml-[1px] [&amp;_svg]:mr-[1px] [&amp;_svg]:pointer-events-none [&amp;_svg:not([class*=&quot;size-&quot;])]:size-4 [&amp;_svg]:shrink-0 [&amp;_kbd]:ml-[4px] [&amp;_kbd]:-mr-[2px] [&amp;_kbd]:[variant=&quot;main&quot;] text-button-1 px-[17px] !text-fg4 outline-none bg-bg-disabled hover:bg-background-alt hover:opacity-100 hover:brightness-100 !cursor-not-allowed h-[50px]",
+    "input": "border-input text-input-1 flex h-[40px] w-full min-w-0 rounded-md border bg-transparent py-[3px] px-[10px] text-base outline-none transition-[color,box-shadow] placeholder:text-fg4 disabled:cursor-not-allowed disabled:text-fg4 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive file:inline-flex file:h-[40px] file:border-0 file:bg-transparent file:text-input-1 file:font-medium",
+    "select": "",
+    "textarea": ""
+  }
+}

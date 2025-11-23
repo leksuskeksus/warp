@@ -1,0 +1,72 @@
+{
+  "layout": {
+    "hasSidebar": true,
+    "hasMainContent": false,
+    "hasTestimonial": false,
+    "columns": [
+      "sidebar"
+    ]
+  },
+  "sidebar": {
+    "logo": "<img alt=\"Warp logo\" width=\"0\" height=\"0\" decoding=\"async\" data-nimg=\"1\" class=\"h-[30px] w-auto\" sizes=\"100vw\" srcset=\"/_next/image?url=%2Fwarp-logo%40512w.webp&amp;w=640&amp;q=75 640w, /_next/image?url=%2Fwarp-logo%40512w.webp&amp;w=750&amp;q=75 750w, /_next/image?url=%2Fwarp-logo%40512w.webp&amp;w=828&amp;q=75 828w, /_next/image?url=%2Fwarp-logo%40512w.webp&amp;w=1080&amp;q=75 1080w, /_next/image?url=%2Fwarp-logo%40512w.webp&amp;w=1200&amp;q=75 1200w, /_next/image?url=%2Fwarp-logo%40512w.webp&amp;w=1920&amp;q=75 1920w, /_next/image?url=%2Fwarp-logo%40512w.webp&amp;w=2048&amp;q=75 2048w, /_next/image?url=%2Fwarp-logo%40512w.webp&amp;w=3840&amp;q=75 3840w\" src=\"/_next/image?url=%2Fwarp-logo%40512w.webp&amp;w=3840&amp;q=75\" style=\"color: transparent;\">",
+    "userProfile": "<div class=\"flex items-center gap-[7px]\"><div class=\"bg-g96 outline outline-border relative size-[30px] flex-none overflow-clip rounded-full\"><img alt=\"Profile Picture\" loading=\"lazy\" decoding=\"async\" data-nimg=\"fill\" sizes=\"100vw\" srcset=\"/_next/image?url=https%3A%2F%2Favatar.vercel.sh%2Fundefined&amp;w=640&amp;q=75 640w, /_next/image?url=https%3A%2F%2Favatar.vercel.sh%2Fundefined&amp;w=750&amp;q=75 750w, /_next/image?url=https%3A%2F%2Favatar.vercel.sh%2Fundefined&amp;w=828&amp;q=75 828w, /_next/image?url=https%3A%2F%2Favatar.vercel.sh%2Fundefined&amp;w=1080&amp;q=75 1080w, /_next/image?url=https%3A%2F%2Favatar.vercel.sh%2Fundefined&amp;w=1200&amp;q=75 1200w, /_next/image?url=https%3A%2F%2Favatar.vercel.sh%2Fundefined&amp;w=1920&amp;q=75 1920w, /_next/image?url=https%3A%2F%2Favatar.vercel.sh%2Fundefined&amp;w=2048&amp;q=75 2048w, /_next/image?url=https%3A%2F%2Favatar.vercel.sh%2Fundefined&amp;w=3840&amp;q=75 3840w\" src=\"/_next/image?url=https%3A%2F%2Favatar.vercel.sh%2Fundefined&amp;w=3840&amp;q=75\" style=\"position: absolute; height: 100%; width: 100%; inset: 0px; object-fit: cover; color: transparent;\"></div><div class=\"flex flex-1 flex-col\"><p class=\"text-caption line-clamp-1 text-left\">Alexey Primechaev</p><p class=\"text-tag text-fg3 line-clamp-1 text-left font-medium\">primall96@gmail.com</p></div></div><div class=\"text-caption text-fg3",
+    "footer": null
+  },
+  "mainContent": {
+    "heading": [
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp",
+      "Start using Warp"
+    ],
+    "formSections": [
+      {
+        "pricingRows": 3,
+        "inputs": [
+          {
+            "type": "number",
+            "placeholder": "Enter a number",
+            "classes": "border-input text-input-1 flex h-[40px] w-full min-w-0 rounded-md border bg-transparent py-[3px] px-[10px] text-base outline-none transition-[color,box-shadow] placeholder:text-fg4 disabled:cursor-not-allowed disabled:text-fg4 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive file:inline-flex file:h-[40px] file:border-0 file:bg-transparent file:text-input-1 file:font-medium"
+          }
+        ]
+      }
+    ],
+    "hasPaymentSection": true,
+    "buttons": [
+      "Confirm &amp; Subscribe",
+      "Confirm &amp; Subscribe",
+      "Confirm &amp; Subscribe",
+      "Confirm &amp; Subscribe",
+      "Confirm &amp; Subscribe",
+      "Confirm &amp; Subscribe",
+      "Confirm &amp; Subscribe",
+      "Confirm &amp; Subscribe",
+      "Confirm &amp; Subscribe",
+      "Confirm &amp; Subscribe",
+      "Confirm &amp; Subscribe",
+      "Confirm &amp; Subscribe",
+      "Confirm &amp; Subscribe"
+    ]
+  },
+  "features": null,
+  "testimonial": null,
+  "textContent": [
+    "Start using Warp",
+    "Warp Pro",
+    "Subtotal (monthly)",
+    "Due Today",
+    "Team Size"
+  ],
+  "checkoutSectionHTML": "<div class=\"flex gap-[50px] max-tablet:flex-col\"><div class=\"group/checkout flex-1 flex flex-col gap-[20px]\"><div class=\"flex-1 flex flex-col gap-[20px]\"><h1 class=\"mb-[20px]\">Start using Warp</h1><div class=\"flex flex-col gap-[30px] text-body-1\"><div class=\"flex gap-[10px]\"><span class=\"flex-1\">Warp Pro</span><div class=\"flex-1 h-fit flex justify-end relative\"><span>$79.00</span><span class=\"absolute top-full right-0 text-tag font-medium text-fg3\">per month</span></div></div><div class=\"flex gap-[10px]\"><div class=\"flex-1 flex flex-col\"><label class=\"mb-[7px]\" for=\"seats\">Team Size</label><div class=\"flex flex-col\"><div class=\"relative\"><input class=\"border-input text-input-1 flex h-[40px] w-full min-w-0 rounded-md border bg-transparent py-[3px] px-[10px] text-base outline-none transition-[color,box-shadow] placeholder:text-fg4 disabled:cursor-not-allowed disabled:text-fg4 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive file:inline-flex file:h-[40px] file:border-0 file:bg-transparent file:text-input-1 file:font-medium\" max=\"50\" min=\"1\" placeholder=\"Enter a number\" type=\"number\" value=\"5\"></div><p class=\"text-caption pb-[5px] pt-[5px] text-fg-error empty:hidden\"></p></div><span class=\"text-tag font-book text-fg3 mt-[5px] whitespace-pre-line\">$35.00 per month per seat</span></div><div class=\"flex-1 h-fit flex justify-end relative\"><span class=\"text-right\">$175.00</span><span class=\"absolute top-full right-0 text-tag font-medium text-fg3\">per month</span></div></div></div><div class=\"h-[1px] bg-divider\"></div>..."
+}
