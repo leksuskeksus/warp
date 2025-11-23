@@ -3,15 +3,18 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
-import { addDays, format, isSameDay, startOfMonth, startOfWeek } from "date-fns";
+import { addDays, format, isSameDay, startOfDay, startOfMonth, startOfWeek } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
 import {
   CalendarEvent as StoredCalendarEvent,
+  HydratedCalendarEvent,
+  hydrateEvents,
   useEvents,
   WEEK_START as EVENTS_WEEK_START,
 } from "@/lib/events-store";
+import { CalendarDayCell } from "@/components/calendar-day-cell";
 
 const WEEK_START = EVENTS_WEEK_START;
 const WEEKS_TO_RENDER = 156;
@@ -24,23 +27,9 @@ type CalendarDay = {
   events: HydratedCalendarEvent[];
 };
 
-type HydratedCalendarEvent = Omit<StoredCalendarEvent, "startsAt" | "endsAt"> & {
-  startsAt: Date;
-  endsAt: Date;
-};
-
-function normalizeEvent(event: StoredCalendarEvent): HydratedCalendarEvent {
-  return {
-    ...event,
-    startsAt: new Date(event.startsAt),
-    endsAt: new Date(event.endsAt),
-  };
-}
-
-function generateCalendarDays(totalWeeks: number, today: Date, events: StoredCalendarEvent[]): CalendarDay[] {
+function generateCalendarDays(totalWeeks: number, today: Date, events: HydratedCalendarEvent[]): CalendarDay[] {
   const firstVisibleDay = startOfWeek(today, { weekStartsOn: WEEK_START });
   const totalDays = totalWeeks * 7;
-  const normalizedEvents = events.map(normalizeEvent);
 
   return Array.from({ length: totalDays }, (_, index) => {
     const dayDate = addDays(firstVisibleDay, index);
@@ -50,7 +39,7 @@ function generateCalendarDays(totalWeeks: number, today: Date, events: StoredCal
       label: format(dayDate, "d"),
       isToday: isSameDay(dayDate, today),
       isMonthStart: isSameDay(dayDate, startOfMonth(dayDate)),
-      events: normalizedEvents.filter((event) => isSameDay(event.startsAt, dayDate)),
+      events: events.filter((event) => isSameDay(event.startsAt, dayDate)),
     };
   });
 }
@@ -58,6 +47,11 @@ function generateCalendarDays(totalWeeks: number, today: Date, events: StoredCal
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [persistedEvents] = useEvents();
+
+  const hydratedEvents = useMemo(() => {
+    const events = hydrateEvents(persistedEvents);
+    return events.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  }, [persistedEvents]);
 
   const calendarDays = useMemo(() => {
     const now = new Date();
@@ -67,8 +61,27 @@ export default function Home() {
       now.getDate(),
     );
 
-    return generateCalendarDays(WEEKS_TO_RENDER, normalizedToday, persistedEvents);
-  }, [persistedEvents]);
+    return generateCalendarDays(WEEKS_TO_RENDER, normalizedToday, hydratedEvents);
+  }, [hydratedEvents]);
+
+  const inspectorSections = useMemo(() => {
+    const groups = new Map<string, { date: Date; events: HydratedCalendarEvent[] }>();
+
+    hydratedEvents.forEach((event) => {
+      const key = format(event.startsAt, "yyyy-MM-dd");
+      if (!groups.has(key)) {
+        groups.set(key, { date: startOfDay(event.startsAt), events: [] });
+      }
+      groups.get(key)!.events.push(event);
+    });
+
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        events: [...group.events].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
+      }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [hydratedEvents]);
 
   const toggleSidebar = () => setIsSidebarOpen((previous) => !previous);
 
@@ -200,47 +213,7 @@ export default function Home() {
               }}
             >
               {calendarDays.map((day) => (
-                <div
-                  key={format(day.date, "yyyy-MM-dd")}
-                  className={cn(
-                    "relative flex flex-col gap-[10px] bg-bg px-[18px] pb-[18px] pt-[14px] text-fg transition-default",
-                    day.isToday && "bg-bg2 ring-1 ring-ring",
-                  )}
-                >
-                  <div className="flex items-center justify-center">
-                    <span className="text-h2 font-medium leading-none text-center">
-                      {day.label}
-                    </span>
-                    {day.isMonthStart && (
-                      <span className="ml-[8px] text-tag font-medium text-fg3">
-                        {format(day.date, "MMM")}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-1 flex-col gap-[6px] overflow-hidden">
-                    {day.events.map((event) => {
-                      const shouldShowTime = event.isAllDay || event.name.length <= 18;
-
-                      return (
-                        <div
-                          key={event.id}
-                          className="flex h-[20px] items-center gap-[6px] rounded-sm border border-border bg-bg2/80 px-[6px] text-tag leading-none"
-                        >
-                          <span className="min-w-0 overflow-hidden whitespace-nowrap text-fg">
-                            {event.name}
-                          </span>
-                          {shouldShowTime && (
-                            <span className="ml-auto shrink-0 whitespace-nowrap text-fg3">
-                              {event.isAllDay
-                                ? "All day"
-                                : format(event.startsAt, "h:mm a")}
-                            </span>
-                          )}
-                    </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                <CalendarDayCell key={format(day.date, "yyyy-MM-dd")} day={day} />
               ))}
         </div>
       </div>
@@ -258,11 +231,56 @@ export default function Home() {
               )}
             >
               <div className="scrollbar-hide flex-1 overflow-y-auto px-[20px] pb-[20px] pt-[67px] text-body-2 text-fg3">
-                <p className="leading-relaxed">
-                  Sidebar content placeholder. Toggle button in the top right collapses this
-                  panel; when hidden the calendar expands to fill the full width.
-                </p>
-        </div>
+                {inspectorSections.length === 0 ? (
+                  <div className="flex h-full items-center justify-center text-caption text-fg4">
+                    No events scheduled
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-[20px]">
+                    {inspectorSections.map((section) => (
+                      <div key={section.date.toISOString()} className="flex flex-col gap-[10px]">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-caption font-semibold uppercase tracking-[0.12em] text-fg2">
+                            {format(section.date, "EEE, MMM d")}
+                          </span>
+                          <span className="text-tag text-fg4">
+                            {section.events.length} event{section.events.length > 1 ? "s" : ""}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-[8px]">
+                          {section.events.map((event) => (
+                            <div
+                              key={event.id}
+                              className="flex items-center justify-between rounded-md border border-border bg-bg px-[12px] py-[10px]"
+                            >
+                              <div className="flex min-w-0 flex-col gap-[4px]">
+                                <span className="text-body-2 font-medium text-fg">{event.name}</span>
+                                {event.notes && (
+                                  <span className="text-caption text-fg3 line-clamp-1">
+                                    {event.notes}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="ml-[12px] flex min-w-[120px] flex-col items-end gap-[4px] text-right">
+                                <span className="text-tag text-fg3">
+                                  {event.isAllDay
+                                    ? "All day"
+                                    : `${format(event.startsAt, "h:mm a")} – ${format(event.endsAt, "h:mm a")}`}
+                                </span>
+                                {event.participants.length > 0 && (
+                                  <span className="text-caption text-fg4 line-clamp-1 max-w-[160px]">
+                                    {event.participants.map((p) => p.name).join(", ")}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </aside>
         </div>

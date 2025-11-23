@@ -24,6 +24,23 @@ export type CalendarEvent = {
   notes?: string;
 };
 
+export type HydratedCalendarEvent = Omit<CalendarEvent, "startsAt" | "endsAt"> & {
+  startsAt: Date;
+  endsAt: Date;
+};
+
+export function hydrateEvent(event: CalendarEvent): HydratedCalendarEvent {
+  return {
+    ...event,
+    startsAt: new Date(event.startsAt),
+    endsAt: new Date(event.endsAt),
+  };
+}
+
+export function hydrateEvents(events: CalendarEvent[]): HydratedCalendarEvent[] {
+  return events.map(hydrateEvent);
+}
+
 function createDemoEvents(): CalendarEvent[] {
   const today = new Date();
   const base = startOfWeek(today, { weekStartsOn: WEEK_START });
