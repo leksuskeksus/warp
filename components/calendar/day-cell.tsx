@@ -356,13 +356,16 @@ export function CalendarDayCell({
         day.isDimmed && "opacity-30",
       )}
     >
-      <div className="flex items-center justify-center gap-[8px]">
-        <span className="text-h2 font-medium leading-none text-center">{format(day.date, "d")}</span>
+      <div className="relative flex w-full items-center justify-center">
         {day.isMonthStart && (
-          <span className="text-tag font-medium text-fg3">
+          <span className="absolute left-[14px] inline-flex translate-y-[-1px] text-h3 font-medium leading-none text-fg2">
             {format(day.date, "MMM")}
+            {"\u00a0"}
           </span>
         )}
+        <span className="relative inline-flex items-baseline text-h2 font-medium leading-none text-center">
+          {format(day.date, "d")}
+        </span>
       </div>
       <div
         ref={eventContainerRef}

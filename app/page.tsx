@@ -33,6 +33,7 @@ import { buildCalendarDays } from "@/lib/calendar";
 import { CalendarInspector, CalendarInspectorSection } from "@/components/calendar/inspector";
 import type { CalendarEventFormValues } from "@/components/calendar/event-form";
 import { usePeople } from "@/lib/people-store";
+import { populateCurrentMonthEvents } from "@/scripts/populate-events";
 
 const WEEK_START = EVENTS_WEEK_START;
 const TOTAL_WEEKS_FORWARD = 120;
@@ -70,6 +71,7 @@ const RECURRENCE_EVENT_TYPES = new Set<CalendarEvent["type"]>(["deadline"]);
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isLeadingSidebarCollapsed, setIsLeadingSidebarCollapsed] = useState(false);
   const [persistedEvents, setPersistedEvents] = useEvents();
   const [people] = usePeople();
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
@@ -101,6 +103,28 @@ export default function Home() {
   const localTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
   const selectedEventId = selectedEvent?.id ?? null;
   const weekViewportMapRef = useRef<Map<number, { top: number; date: Date }>>(new Map());
+
+  // Expose populate function to browser console for easy access
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      (window as any).populateCurrentMonthEvents = () => {
+        const success = populateCurrentMonthEvents();
+        if (success) {
+          // Refresh events from storage
+          const eventsJson = window.localStorage.getItem("calendar-events");
+          if (eventsJson) {
+            try {
+              const events = JSON.parse(eventsJson) as CalendarEvent[];
+              setPersistedEvents(events);
+            } catch (e) {
+              console.error("Failed to refresh events after population:", e);
+            }
+          }
+        }
+        return success;
+      };
+    }
+  }, [setPersistedEvents]);
 
   const today = useMemo(() => {
     const now = new Date();
@@ -729,6 +753,43 @@ export default function Home() {
     setSelectedEvent(null);
   };
 
+  const handleEventEdit = useCallback(
+    (event: HydratedCalendarEvent) => {
+      const startDate = event.startsAt;
+      const endDate = event.endsAt ?? event.startsAt;
+
+      const initialValues: CalendarEventFormValues = {
+        title: event.title,
+        type: event.type,
+        isAllDay: event.isAllDay,
+        startDate: format(startDate, "yyyy-MM-dd"),
+        startTime: event.isAllDay ? "" : format(startDate, "HH:mm"),
+        endDate: format(endDate, "yyyy-MM-dd"),
+        endTime: event.isAllDay ? "" : endDate ? format(endDate, "HH:mm") : "",
+        timeZone: event.timeZone ?? localTimeZone,
+        location: event.location ?? "",
+        description: event.description ?? "",
+        attendeesInput: event.attendees.map((a) => (a.email ? `${a.name} <${a.email}>` : a.name)).join("\n"),
+        recurrenceRule: event.recurrenceRule ?? "",
+        personId: event.owner.personId ?? "",
+        ownerName: event.owner.name,
+        ownerEmail: event.owner.email ?? "",
+      };
+
+      setDraftEvent(initialValues);
+      setDraftEventKey(crypto.randomUUID());
+      setDraftErrors([]);
+      setIsDraftSaving(false);
+      setSelectedEvent(null);
+
+      const startDayKey = format(startDate, "yyyy-MM-dd");
+      setSelectedDays(new Set([startDayKey]));
+      setIsSidebarOpen(true);
+      ensureWeekVisible(getWeekIndexForDate(startDate));
+    },
+    [ensureWeekVisible, getWeekIndexForDate, localTimeZone],
+  );
+
   const toggleSidebar = () => {
     if (selectedDays.size > 0 || selectedEvent || draftEvent) {
       if (isSidebarOpen) {
@@ -799,41 +860,13 @@ export default function Home() {
 
   return (
     <div className="force-light flex h-screen bg-bg text-g8">
-      <div className="max-tablet:hidden sticky inset-0 right-auto flex h-screen min-w-[250px] flex-col justify-between bg-g98 p-[20px]">
-        <div>
-          <Image
-            src="/warp-logo@512w.webp"
-            alt="Warp logo"
-            className="h-[30px] w-auto"
-            width={0}
-            height={0}
-            sizes="100vw"
-            priority
-          />
-        </div>
-        <div className="flex flex-col gap-[15px]">
-          <div className="flex items-center gap-[7px]">
-            <div className="bg-g96 outline outline-border relative size-[30px] flex-none overflow-clip rounded-full">
-              {/* Placeholder avatar */}
-            </div>
-            <div className="flex flex-1 flex-col">
-              <p className="text-caption line-clamp-1 text-left">Alexey Primechaev</p>
-              <p className="text-tag text-fg3 line-clamp-1 text-left font-medium">
-                primall96@gmail.com
-              </p>
-            </div>
-          </div>
-          <div className="text-caption text-fg3 transition-default *:hover:text-fg flex gap-[10px] has-[a]:underline">
-            <a href="/auth/logout">Log Out</a>
-            <a target="_blank" href="https://www.joinwarp.com/privacy">
-              Privacy
-            </a>
-            <a target="_blank" href="https://www.joinwarp.com/terms">
-              Terms
-            </a>
-          </div>
-        </div>
-      </div>
+      <div
+        onClick={() => setIsLeadingSidebarCollapsed((prev) => !prev)}
+        className={cn(
+          "max-tablet:hidden sticky inset-0 right-auto flex h-screen flex-col bg-g98 transition-all duration-200 ease-out cursor-pointer",
+          isLeadingSidebarCollapsed ? "w-[64px]" : "w-[250px] p-[20px]",
+        )}
+      />
 
       <main className="relative flex flex-1 min-h-0 flex-col overflow-hidden border border-border bg-bg">
         <header className="pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[51px] items-center justify-between gap-[20px] px-[32px]">
@@ -934,6 +967,7 @@ export default function Home() {
                 selectedEventId={selectedEventId}
                 onSelectEvent={handleEventSelect}
                 onCloseEvent={handleEventClose}
+                onEditEvent={handleEventEdit}
                 localTimeZone={localTimeZone}
                 onRequestCreate={handleRequestNewEvent}
                 draftEvent={draftEvent}
