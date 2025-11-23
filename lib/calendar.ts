@@ -1,4 +1,4 @@
-import { addDays, format, isSameDay, startOfDay, startOfMonth, startOfWeek } from "date-fns";
+import { addDays, format, isSameDay, startOfDay, startOfMonth } from "date-fns";
 
 import { CalendarEventType, HydratedCalendarEvent } from "./events-store";
 
@@ -35,6 +35,8 @@ export function formatEventSchedule(event: HydratedCalendarEvent): string {
 
 export type CalendarDay = {
   date: Date;
+  dayIndex: number;
+  weekIndex: number;
   isToday: boolean;
   isMonthStart: boolean;
   events: HydratedCalendarEvent[];
@@ -42,22 +44,32 @@ export type CalendarDay = {
   isDimmed?: boolean;
 };
 
-export function buildCalendarDays(
-  totalWeeks: number,
-  today: Date,
-  events: HydratedCalendarEvent[],
-  weekStartsOn: number,
-): CalendarDay[] {
-  const firstVisibleDay = startOfWeek(today, { weekStartsOn });
-  const totalDays = totalWeeks * 7;
+type BuildCalendarDaysOptions = {
+  baseDate: Date;
+  today: Date;
+  startWeek: number;
+  weekCount: number;
+  events: HydratedCalendarEvent[];
+};
+
+export function buildCalendarDays({
+  baseDate,
+  today,
+  startWeek,
+  weekCount,
+  events,
+}: BuildCalendarDaysOptions): CalendarDay[] {
+  const totalDays = weekCount * 7;
 
   return Array.from({ length: totalDays }, (_, index) => {
-    const dayDate = addDays(firstVisibleDay, index);
-
+    const absoluteDayIndex = startWeek * 7 + index;
+    const dayDate = addDays(baseDate, absoluteDayIndex);
     const dayStart = startOfDay(dayDate).getTime();
 
     return {
       date: dayDate,
+      dayIndex: absoluteDayIndex,
+      weekIndex: startWeek + Math.floor(index / 7),
       isToday: isSameDay(dayDate, today),
       isMonthStart: isSameDay(dayDate, startOfMonth(dayDate)),
       events: events.filter((event) => {
@@ -68,5 +80,6 @@ export function buildCalendarDays(
     };
   });
 }
+
 
 

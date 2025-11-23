@@ -1,9 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { format, parseISO, startOfDay } from "date-fns";
+import { addWeeks, differenceInCalendarDays, format, parseISO, startOfDay, startOfWeek } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
@@ -19,7 +19,11 @@ import { buildCalendarDays } from "@/lib/calendar";
 import { CalendarInspector, CalendarInspectorSection } from "@/components/calendar/inspector";
 
 const WEEK_START = EVENTS_WEEK_START;
-const WEEKS_TO_RENDER = 156;
+const TOTAL_WEEKS_FORWARD = 120;
+const TOTAL_WEEKS_BACKWARD = 36;
+const TOTAL_WEEKS = TOTAL_WEEKS_FORWARD + TOTAL_WEEKS_BACKWARD;
+const INITIAL_VISIBLE_WEEKS = 12;
+const WEEK_VISIBILITY_BUFFER = 6;
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -28,29 +32,30 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState<HydratedCalendarEvent | null>(null);
   const selectedDaysRef = useRef(selectedDays);
   const selectedEventRef = useRef<HydratedCalendarEvent | null>(null);
+  const [visibleWeekRange, setVisibleWeekRange] = useState<{ start: number; end: number }>(() => ({
+    start: TOTAL_WEEKS_BACKWARD,
+    end: Math.min(TOTAL_WEEKS, TOTAL_WEEKS_BACKWARD + INITIAL_VISIBLE_WEEKS),
+  }));
+  const calendarScrollRef = useRef<HTMLDivElement | null>(null);
+  const todayNodeRef = useRef<HTMLButtonElement | null>(null);
+  const hasScrolledToTodayRef = useRef(false);
   const localTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
   const selectedEventId = selectedEvent?.id ?? null;
+
+  const today = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }, []);
+
+  const calendarBaseDate = useMemo(() => {
+    const start = startOfWeek(today, { weekStartsOn: WEEK_START });
+    return addWeeks(start, -TOTAL_WEEKS_BACKWARD);
+  }, [today]);
 
   const hydratedEvents = useMemo(() => {
     const events = hydrateEvents(persistedEvents);
     return events.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
   }, [persistedEvents]);
-
-  useEffect(() => {
-    if (!selectedEvent) {
-      return;
-    }
-
-    const updatedEvent = hydratedEvents.find((event) => event.id === selectedEvent.id);
-    if (!updatedEvent) {
-      setSelectedEvent(null);
-      return;
-    }
-
-    if (updatedEvent !== selectedEvent) {
-      setSelectedEvent(updatedEvent);
-    }
-  }, [hydratedEvents, selectedEvent]);
 
   const filteredEvents = useMemo(() => {
     if (selectedDays.size === 0) {
@@ -72,27 +77,151 @@ export default function Home() {
     });
   }, [hydratedEvents, selectedDays]);
 
-  const calendarDays = useMemo<CalendarDay[]>(() => {
-    const now = new Date();
-    const normalizedToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
+  const baseCalendarDays = useMemo<CalendarDay[]>(
+    () =>
+      buildCalendarDays({
+        baseDate: calendarBaseDate,
+        today,
+        startWeek: 0,
+        weekCount: TOTAL_WEEKS,
+        events: hydratedEvents,
+      }),
+    [calendarBaseDate, hydratedEvents, today],
+  );
 
-    const baseDays = buildCalendarDays(WEEKS_TO_RENDER, normalizedToday, hydratedEvents, WEEK_START);
+  const calendarDays = useMemo<CalendarDay[]>(() => {
     const hasSelection = selectedDays.size > 0;
 
-    return baseDays.map((day) => {
+    return baseCalendarDays.map((day) => {
       const key = format(day.date, "yyyy-MM-dd");
       const isSelected = selectedDays.has(key);
+
       return {
         ...day,
         isSelected,
         isDimmed: hasSelection && !isSelected,
       };
     });
-  }, [hydratedEvents, selectedDays]);
+  }, [baseCalendarDays, selectedDays]);
+
+  const getWeekIndexForDate = useCallback(
+    (date: Date) => {
+      const dayDifference = differenceInCalendarDays(startOfDay(date), calendarBaseDate);
+      return Math.floor(dayDifference / 7);
+    },
+    [calendarBaseDate],
+  );
+
+  const ensureWeekVisible = useCallback(
+    (weekIndex: number) => {
+      if (!Number.isFinite(weekIndex)) {
+        return;
+      }
+
+      const clampedIndex = Math.min(Math.max(weekIndex, 0), TOTAL_WEEKS - 1);
+
+      setVisibleWeekRange((previous) => {
+        if (clampedIndex >= previous.start && clampedIndex < previous.end) {
+          return previous;
+        }
+
+        const desiredStart = Math.max(
+          0,
+          clampedIndex - Math.floor(INITIAL_VISIBLE_WEEKS / 2),
+        );
+        const maxStart = Math.max(0, TOTAL_WEEKS - INITIAL_VISIBLE_WEEKS);
+        const adjustedStart = Math.min(desiredStart, maxStart);
+        const adjustedEnd = Math.min(
+          TOTAL_WEEKS,
+          Math.max(adjustedStart + INITIAL_VISIBLE_WEEKS, clampedIndex + 1),
+        );
+
+        return {
+          start: adjustedStart,
+          end: adjustedEnd,
+        };
+      });
+    },
+    [],
+  );
+
+  const handleTodayNode = useCallback((node: HTMLButtonElement | null) => {
+    todayNodeRef.current = node;
+  }, []);
+
+  useEffect(() => {
+    if (hasScrolledToTodayRef.current) {
+      return;
+    }
+
+    const node = todayNodeRef.current;
+    if (!node) {
+      return;
+    }
+
+    node.scrollIntoView({ block: "center", behavior: "auto" });
+    hasScrolledToTodayRef.current = true;
+  }, [calendarDays]);
+
+  const expandWeekRange = useCallback(
+    (direction: "up" | "down") => {
+      setVisibleWeekRange((previous) => {
+        if (direction === "up") {
+          if (previous.start === 0) {
+            return previous;
+          }
+
+          const nextStart = Math.max(0, previous.start - WEEK_VISIBILITY_BUFFER);
+          if (nextStart === previous.start) {
+            return previous;
+          }
+
+          const nextEnd = Math.min(
+            TOTAL_WEEKS,
+            Math.max(previous.end, nextStart + INITIAL_VISIBLE_WEEKS),
+          );
+
+          return {
+            start: nextStart,
+            end: nextEnd,
+          };
+        }
+
+        if (previous.end >= TOTAL_WEEKS) {
+          return previous;
+        }
+
+        const nextEnd = Math.min(TOTAL_WEEKS, previous.end + WEEK_VISIBILITY_BUFFER);
+        if (nextEnd === previous.end) {
+          return previous;
+        }
+
+        return {
+          start: previous.start,
+          end: nextEnd,
+        };
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!selectedEvent) {
+      return;
+    }
+
+    const updatedEvent = hydratedEvents.find((event) => event.id === selectedEvent.id);
+    if (!updatedEvent) {
+      setSelectedEvent(null);
+      return;
+    }
+
+    if (updatedEvent !== selectedEvent) {
+      setSelectedEvent(updatedEvent);
+    }
+
+    ensureWeekVisible(getWeekIndexForDate(updatedEvent.startsAt));
+  }, [ensureWeekVisible, getWeekIndexForDate, hydratedEvents, selectedEvent]);
 
   const inspectorSections = useMemo<CalendarInspectorSection[]>(() => {
     const groups = new Map<string, { date: Date; events: HydratedCalendarEvent[] }>();
@@ -115,6 +244,7 @@ export default function Home() {
 
   const toggleDaySelection = (date: Date, additive: boolean) => {
     const key = format(date, "yyyy-MM-dd");
+    const weekIndex = getWeekIndexForDate(date);
     setSelectedDays((prev) => {
       const alreadySelected = prev.has(key);
 
@@ -125,6 +255,7 @@ export default function Home() {
         const next = new Set<string>();
         if (!alreadySelected) {
           next.add(key);
+          ensureWeekVisible(weekIndex);
         }
         if (next.size > 0) {
           setIsSidebarOpen(true);
@@ -137,6 +268,7 @@ export default function Home() {
         next.delete(key);
       } else {
         next.add(key);
+        ensureWeekVisible(weekIndex);
       }
       if (next.size > 0) {
         setIsSidebarOpen(true);
@@ -146,6 +278,7 @@ export default function Home() {
   };
 
   const handleEventSelect = (calendarEvent: HydratedCalendarEvent) => {
+    ensureWeekVisible(getWeekIndexForDate(calendarEvent.startsAt));
     setSelectedEvent(calendarEvent);
     setIsSidebarOpen(true);
   };
@@ -299,6 +432,7 @@ export default function Home() {
         </header>
         <div className="relative flex flex-1 min-h-0">
           <div
+            ref={calendarScrollRef}
             className={cn(
               "scrollbar-hide flex-1 overflow-y-auto bg-bg px-[12px] pb-[24px] pt-[12px] transition-[margin-right] duration-200 ease-out min-h-0",
               isSidebarOpen ? "mr-[295px]" : "mr-0",
@@ -306,9 +440,14 @@ export default function Home() {
           >
             <CalendarView
               days={calendarDays}
+              weekRange={visibleWeekRange}
+              totalWeeks={TOTAL_WEEKS}
               selectedEventId={selectedEventId}
               onDaySelect={toggleDaySelection}
               onEventSelect={handleEventSelect}
+              onRequestRangeChange={expandWeekRange}
+              scrollContainerRef={calendarScrollRef}
+              onTodayNode={handleTodayNode}
             />
           </div>
 

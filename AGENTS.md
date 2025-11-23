@@ -13,6 +13,7 @@
 - ✅ Event pills include titles, times (with all-day handling), notes, and participant rollups.
 - ✅ Base styling updated to match Warp tokens while preserving responsive flex layout.
 - ✅ Calendar UI refactored into modular components (`CalendarView`, `CalendarDayCell`, `CalendarInspector`, `CalendarEventDetails`) with shared helpers in `lib/calendar.ts`, enabling richer interactions and multi-day span handling.
+- ✅ Main calendar view virtualized via week windowing with intersection-buffered pagination, reducing DOM weight while preserving continuous scroll.
 
 ## Next Focus Areas
 1. Month navigation controls and virtualized scroll for long horizons.

@@ -4,12 +4,12 @@ import { format } from "date-fns";
 
 import { cn } from "@/lib/cn";
 import { HydratedCalendarEvent } from "@/lib/events-store";
-import type { CalendarDay } from "@/lib/calendar";
+import type { CalendarDay as CalendarDayModel } from "@/lib/calendar";
 
 import { CalendarDayCellEvent } from "./day-cell-event";
 
 type CalendarDayCellProps = {
-  day: CalendarDay;
+  day: CalendarDayModel;
   selectedEventId?: string | null;
   onEventClick?: (event: HydratedCalendarEvent) => void;
 };
