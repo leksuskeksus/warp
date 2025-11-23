@@ -10,10 +10,18 @@ import { getEventTypePalette } from "@/lib/calendar";
 type CalendarDayCellEventProps = {
   event: HydratedCalendarEvent;
   isSelected?: boolean;
+  isPartOfSelectedRecurringSeries?: boolean;
+  hasSelectedEvent?: boolean;
   onSelect?: (event: HydratedCalendarEvent) => void;
 };
 
-export function CalendarDayCellEvent({ event, isSelected, onSelect }: CalendarDayCellEventProps) {
+export function CalendarDayCellEvent({
+  event,
+  isSelected,
+  isPartOfSelectedRecurringSeries = false,
+  hasSelectedEvent = false,
+  onSelect,
+}: CalendarDayCellEventProps) {
   const handleClick = (interactionEvent: MouseEvent<HTMLDivElement>) => {
     interactionEvent.stopPropagation();
     onSelect?.(event);
@@ -31,6 +39,8 @@ export function CalendarDayCellEvent({ event, isSelected, onSelect }: CalendarDa
 
   const palette = getEventTypePalette(event.type);
   const isInteractive = Boolean(onSelect);
+  const shouldBeFullyOpaque = isSelected || isPartOfSelectedRecurringSeries;
+  const shouldReduceOpacity = hasSelectedEvent && !shouldBeFullyOpaque;
   const paletteStyle: CSSProperties = {
     "--event-bg": palette.background,
     "--event-fg": palette.foreground,
@@ -52,6 +62,7 @@ export function CalendarDayCellEvent({ event, isSelected, onSelect }: CalendarDa
         isInteractive ? "cursor-pointer hover:brightness-105 active:brightness-95" : "cursor-default",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--event-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--event-bg)]",
         isSelected && "shadow-[0_0_0_2px_rgba(255,255,255,0.55)]",
+        shouldReduceOpacity && "opacity-30",
       )}
       tabIndex={isInteractive ? 0 : -1}
       role={isInteractive ? "button" : undefined}

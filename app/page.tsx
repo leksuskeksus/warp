@@ -744,6 +744,13 @@ export default function Home() {
 
   const handleEventSelect = (calendarEvent: HydratedCalendarEvent) => {
     handleDraftCancel();
+    
+    // Toggle selection: if clicking the already selected event, deselect it
+    if (selectedEvent?.id === calendarEvent.id) {
+      setSelectedEvent(null);
+      return;
+    }
+    
     ensureWeekVisible(getWeekIndexForDate(calendarEvent.startsAt));
     setSelectedEvent(calendarEvent);
     setIsSidebarOpen(true);
@@ -935,6 +942,7 @@ export default function Home() {
               weekRange={visibleWeekRange}
               totalWeeks={TOTAL_WEEKS}
               selectedEventId={selectedEventId}
+              selectedEvent={selectedEvent}
               onDaySelect={toggleDaySelection}
               onEventSelect={handleEventSelect}
               onEventCreate={handleCreateIntent}

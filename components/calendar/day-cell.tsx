@@ -6,6 +6,7 @@ import { addMinutes, format } from "date-fns";
 import { cn } from "@/lib/cn";
 import { HydratedCalendarEvent } from "@/lib/events-store";
 import type { CalendarDay as CalendarDayModel } from "@/lib/calendar";
+import { areEventsInSameRecurringSeries } from "@/lib/calendar";
 
 import { CalendarDayCellEvent } from "./day-cell-event";
 
@@ -30,6 +31,7 @@ export type CalendarDayCellCreateEventPayload = {
 type CalendarDayCellProps = {
   day: CalendarDayModel;
   selectedEventId?: string | null;
+  selectedEvent?: HydratedCalendarEvent | null;
   onEventClick?: (event: HydratedCalendarEvent) => void;
   onEventCreate?: (payload: CalendarDayCellCreateEventPayload) => void;
 };
@@ -37,6 +39,7 @@ type CalendarDayCellProps = {
 export function CalendarDayCell({
   day,
   selectedEventId,
+  selectedEvent,
   onEventClick,
   onEventCreate,
 }: CalendarDayCellProps) {
@@ -356,13 +359,13 @@ export function CalendarDayCell({
         day.isDimmed && "opacity-30",
       )}
     >
+      {day.isMonthStart && (
+        <span className="absolute left-[14px] top-[12px] inline-flex translate-y-[6px] text-h3 font-medium leading-none text-fg2">
+          {format(day.date, "MMM")}
+          {"\u00a0"}
+        </span>
+      )}
       <div className="relative flex w-full items-center justify-center">
-        {day.isMonthStart && (
-          <span className="absolute left-[14px] inline-flex translate-y-[-1px] text-h3 font-medium leading-none text-fg2">
-            {format(day.date, "MMM")}
-            {"\u00a0"}
-          </span>
-        )}
         <span className="relative inline-flex items-baseline text-h2 font-medium leading-none text-center">
           {format(day.date, "d")}
         </span>
@@ -374,14 +377,24 @@ export function CalendarDayCell({
         onMouseLeave={handleMouseLeave}
         role="presentation"
       >
-        {day.events.map((event) => (
-          <CalendarDayCellEvent
-            key={event.id}
-            event={event}
-            isSelected={selectedEventId === event.id}
-            onSelect={onEventClick}
-          />
-        ))}
+        {day.events.map((event) => {
+          const isSelected = selectedEventId === event.id;
+          const isPartOfSelectedRecurringSeries =
+            selectedEvent && !isSelected && selectedEventId
+              ? areEventsInSameRecurringSeries(event, selectedEvent)
+              : false;
+
+          return (
+            <CalendarDayCellEvent
+              key={event.id}
+              event={event}
+              isSelected={isSelected}
+              isPartOfSelectedRecurringSeries={isPartOfSelectedRecurringSeries}
+              hasSelectedEvent={!!selectedEventId}
+              onSelect={onEventClick}
+            />
+          );
+        })}
 
         {hoverState && indicatorMetrics && showAnimation && (
           <div className="absolute inset-0 z-50">

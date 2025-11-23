@@ -84,6 +84,32 @@ export function formatEventSchedule(event: HydratedCalendarEvent): string {
     : `${format(start, "EEE, MMM d · h:mm a")} – ${format(event.endsAt, "EEE, MMM d · h:mm a")}`;
 }
 
+/**
+ * Checks if two events are part of the same recurring series.
+ * Events are considered part of the same recurring series if they:
+ * - Have the same recurrenceRule (non-empty)
+ * - Have the same title
+ * - Have the same type
+ * - Have the same owner ID
+ */
+export function areEventsInSameRecurringSeries(
+  event1: HydratedCalendarEvent,
+  event2: HydratedCalendarEvent,
+): boolean {
+  // If either event doesn't have a recurrence rule, they're not part of a recurring series
+  if (!event1.recurrenceRule || !event2.recurrenceRule) {
+    return false;
+  }
+
+  // Check if they have the same recurrence rule, title, type, and owner
+  return (
+    event1.recurrenceRule === event2.recurrenceRule &&
+    event1.title === event2.title &&
+    event1.type === event2.type &&
+    event1.owner.id === event2.owner.id
+  );
+}
+
 export type CalendarDay = {
   date: Date;
   dayIndex: number;

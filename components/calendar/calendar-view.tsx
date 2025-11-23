@@ -32,6 +32,7 @@ type CalendarViewProps = {
   weekRange: CalendarWeekRange;
   totalWeeks: number;
   selectedEventId?: string | null;
+  selectedEvent?: HydratedCalendarEvent | null;
   onDaySelect: (date: Date, additive: boolean) => void;
   onEventSelect: (event: HydratedCalendarEvent) => void;
   onEventCreate: (payload: CalendarDayCellCreateEventPayload) => void;
@@ -47,6 +48,7 @@ export function CalendarView({
   weekRange,
   totalWeeks,
   selectedEventId = null,
+  selectedEvent = null,
   onDaySelect,
   onEventSelect,
   onEventCreate,
@@ -244,6 +246,7 @@ export function CalendarView({
               <CalendarDayCell
                 day={day}
                 selectedEventId={selectedEventId}
+                selectedEvent={selectedEvent}
                 onEventClick={onEventSelect}
                 onEventCreate={onEventCreate}
               />
