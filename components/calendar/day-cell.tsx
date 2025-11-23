@@ -350,23 +350,37 @@ export function CalendarDayCell({
   return (
     <div
       className={cn(
-        "relative flex h-full w-full flex-col rounded-[12px] border border-transparent bg-bg px-[14px] pb-[14px] pt-[12px] text-fg transition-all duration-150",
+        "relative flex h-full w-full flex-col rounded-[12px] border-2 border-transparent bg-bg px-[14px] pb-[14px] pt-[12px] text-fg transition-all duration-150",
         !day.isSelected &&
           "group-hover:border-border group-hover:shadow-[0_0_0_1px_rgba(0,0,0,0.08)] group-active:border-success/60 group-active:shadow-[0_0_0_1px_rgba(22,163,74,0.45)]",
         day.isToday && "bg-bg2",
         day.isToday && !day.isSelected && "border-border",
-        day.isSelected && "border-2 border-[#3AD33A]",
+        day.isSelected && "border-[#3AD33A]",
         day.isDimmed && "opacity-30",
       )}
     >
       {day.isMonthStart && (
-        <span className="absolute left-[14px] top-[12px] inline-flex translate-y-[6px] text-h3 font-medium leading-none text-fg2">
+        <span
+          className={cn(
+            "absolute left-[14px] top-[12px] inline-flex translate-y-[6px] text-h3 font-medium leading-none text-fg2 transition-opacity duration-150",
+            selectedEvent &&
+              !day.events.some((event) => event.id === selectedEvent.id) &&
+              "opacity-30",
+          )}
+        >
           {format(day.date, "MMM")}
           {"\u00a0"}
         </span>
       )}
       <div className="relative flex w-full items-center justify-center">
-        <span className="relative inline-flex items-baseline text-h2 font-medium leading-none text-center">
+        <span
+          className={cn(
+            "relative inline-flex items-baseline text-h2 font-medium leading-none text-center transition-opacity duration-150",
+            selectedEvent &&
+              !day.events.some((event) => event.id === selectedEvent.id) &&
+              "opacity-30",
+          )}
+        >
           {format(day.date, "d")}
         </span>
       </div>

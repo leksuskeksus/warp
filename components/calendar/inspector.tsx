@@ -66,7 +66,7 @@ export function CalendarInspector({
         className,
       )}
     >
-      <div className="sticky top-0 z-20 -mx-[20px] mb-[20px] flex h-[51px] items-center justify-between gap-[12px] bg-[rgba(255,255,255,0.92)] px-[6px] py-[7px] backdrop-blur">
+      <div className="sticky top-0 z-20 -mx-[20px] mb-[20px] flex h-[51px] items-center justify-between gap-[12px] bg-white px-[6px] py-[7px]">
         {showCreationForm ? (
           <>
             <Button
