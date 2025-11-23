@@ -1,54 +1,58 @@
 # Agent Brief
 
 ## Context
-- This repo is a test case for joinwarp.com.
-- Goal: build a calendar view experience while matching Warp's visual language so we can transition to a custom UI seamlessly.
-- Step one: recreate Warp's base assets (fonts, tokens, layouts) to enable rapid UI work.
+- Repository is a joinwarp.com test case.
+- Objective: build a calendar experience that feels native to Warp while we continue aligning with their current styling system.
+- Foundation: Warp tokens, typography, and layout primitives are already integrated so UI iterations stay consistent with their aesthetic.
 
 ## Progress
-- ✅ Downloaded Warp's Macan font files, added `@font-face` declarations, and wired the font stack globally.
-- ✅ Extracted Warp's color palette and typography scale as CSS custom properties.
-- ✅ Built class extraction system to analyze reference.html and extract all Tailwind patterns.
-- ✅ Generated complete tailwind.config.js with all semantic tokens (fg, bg, text-*, border-*, etc.).
-- ✅ Updated all components (Button, Input, Select, Textarea) to use pure Tailwind utilities.
-- ✅ Removed custom CSS classes (.warp-button, .warp-input, etc.) in favor of utility composition.
-- ✅ Updated page.tsx to match reference.html structure and classes exactly.
-- 🎯 Now using Warp's exact approach: Tailwind utilities + extended config.
+- ✅ Persisted event data store (localStorage-backed) with hydration helpers.
+- ✅ Monthly grid rendered with consistent cell sizing, hover/active states, and selectable days.
+- ✅ Click-to-select (with shift multi-select) filtering that powers both the grid and inspector.
+- ✅ Inspector sidebar lists filtered events chronologically, grouped by day.
+- ✅ Event pills include titles, times (with all-day handling), notes, and participant rollups.
+- ✅ Base styling updated to match Warp tokens while preserving responsive flex layout.
 
-## Next Tasks Before Custom UI
-1. Extract reusable button styles and interaction states (primary, secondary, subtle) that map to Warp's design tokens.
-2. Build shared layout primitives (grid wrappers, card shells) so future screens keep consistent spacing and shadows.
-3. Introduce a shared form component library (inputs, selects, toggles) aligned with the recreated styling to avoid per-page duplication.
-4. Investigate app.joinwarp.com with CLI-friendly introspection tools (e.g., scraping/asset export utilities) so we can inspect the source CSS/JS ourselves instead of relying on manual snapshots.
-
----
+## Next Focus Areas
+1. Month navigation controls and virtualized scroll for long horizons.
+2. Event creation/edit flow with type, participants, and notes.
+3. Visual differentiation per event type (color/icon system) in both grid and inspector.
+4. Multi-day & overlapping event layout refinements.
+5. Accessibility polish: keyboard interaction for selection and inspector, screen reader labels.
+6. Optional: mobile responsive breakpoints once desktop parity feels solid.
 
 ## Current Workflow
-1. **Fetch live production CSS**  
-   ```bash
-   npm run warp:fetch
-   ```
-   Downloads `6f7724a58a14cab1.css` and `8e8a01bc8e699344.css` into `reference-source/`. These are the same chunks Warp serves from `/checkout`.
+1. **Refresh Warp tokens** – `npm run warp:fetch` then `npm run warp:extract` to stay synced with production styles.
+2. **Develop calendar features** – core code lives in `app/page.tsx` with shared pieces under `components/` and stores in `lib/`.
+3. **Persist + hydrate data** – use the helpers in `lib/events-store.ts` for any event changes so the UI stays consistent across sessions.
 
-2. **Extract tokens/custom properties**  
-   ```bash
-   npm run warp:extract
-   ```
-   Parses the main CSS chunk with PostCSS and writes every `:root`, `.force-light`, and `.dark` rule into `styles/generated/warp-tokens.css`. This file is imported at the top of `app/globals.css` and should never be edited manually—rerun the extractor when Warp updates their tokens.
+## Feature Checklist
 
-3. **Alias + component styling**  
-   `app/globals.css` remaps Warp’s variables to the lightweight `--warp-*` aliases we use in components, and defines handcrafted `.warp-button` / `.warp-input` classes driven directly by those aliases. Any new component (selects, toggles, cards, etc.) should follow this pattern: reuse tokens, recreate the DOM that Warp’s CSS expects, and expose React primitives under `components/ui/`.
+### Core Features
+- [x] Monthly calendar view (current month stream; navigation pending).
+- [ ] Navigation between months (explicit controls).
+- [x] Display events: title, start time, end time (optional), type, notes, participants.
+- [ ] Event creation interface.
+- [ ] Visual differentiation by event type (colors/icons).
+- [ ] Click day to view expanded details (inspector shows list; day-level drill-in still basic).
+- [ ] Mobile responsive layout.
 
-## Progress Snapshot
-- Fonts, color palette, and typography scale are sourced from Warp’s live CSS via the extractor (imported into `app/globals.css`).
-- `<Button>` now implements Warp’s primary secondary, and subtle baseline styling plus disabled/focus behaviour, without depending on scraped class strings.
-- `<Input>` mirrors Warp’s text field treatment (sizing, placeholder, focus ring, invalid state). The “Team size” control in `app/page.tsx` already uses it.
-- Automation scripts exist for refreshing CSS snapshots (`warp:fetch`, `warp:extract`) so staying in sync is repeatable.
+### Technical Constraints
+- [x] React application.
+- [x] No calendar UI libraries; using date-fns for utilities.
+- [x] Styling via Tailwind + Warp tokens (documented choice).
+- [ ] Full TypeScript adoption (currently mixed TS/JS).
 
-## Outstanding Work for Parity
-1. **Button states** – Audit Warp’s live `group/button` selectors for secondary/subtle hover, pressed (`data-active`), loading, icon spacing, and multi-button group spacing. Mirror any missing state in `.warp-button` and expose props so the React component can toggle them.
-2. **Form library expansion** – Build `<Select>`, `<Textarea>`, toggle/switch components, and grouped inputs (label, helper/error messaging) using the same token-driven approach. Ensure hover/disabled/invalid states use the exact colors from the extracted CSS.
-3. **Layout primitives** – Recreate Warp’s grid wrappers, card shells, sidebar/header spacing, and elevation tokens so future pages can compose them without bespoke CSS. Inspect the downloaded CSS for classes like `.group/checkout`, `.bg-bg2`, `.border-divider`, etc., and port them into reusable utility classes or components.
-4. **Typography utilities** – Map the remaining text utilities (status, tag, tab, caption) and verify they match leakage from `styles/generated/warp-tokens.css`. Replace ad-hoc Tailwind font sizes with these utilities throughout `app/page.tsx`.
-5. **Global parity audit** – Remove `<link>` tags that import Warp’s compiled CSS once we have recreated all referenced selectors locally. Before removing, ensure every `.group/...` / `[data-slot=…]` combination used in the page has a local equivalent.
-6. **Visual regression spot checks** – Once key primitives are localized, compare screenshots of our checkout page versus `app.joinwarp.com/checkout` (desktop + tablet). Document any remaining mismatches (spacing, colors, shadows) so they can be addressed systematically.
+### Considerations (In Progress / Planned)
+- [ ] Multi-day events rendering.
+- [ ] Overlapping events display logic.
+- [ ] Time zone awareness for remote teams.
+- [ ] Recurring event support.
+- [ ] High-density month handling (performance & readability).
+- [ ] Continued Warp aesthetic polish.
+
+### Bonus Challenges
+- [ ] Google Calendar sync UI.
+- [ ] Smart conflict detection.
+- [ ] Advanced filtering by type/person/team.
+- [ ] Accessibility: full keyboard + screen reader support.

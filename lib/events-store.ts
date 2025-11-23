@@ -1,39 +1,57 @@
 "use client";
 
-import { addDays, startOfWeek } from "date-fns";
+import { addDays, set, startOfWeek } from "date-fns";
 
 import { createPersistentStore } from "./storage";
 
 export const WEEK_START = 0;
 
-export type CalendarEventType = "meeting" | "reminder" | "out-of-office" | "milestone" | "other";
+export type CalendarEventType =
+  | "time-off"
+  | "birthday"
+  | "work-anniversary"
+  | "company-event"
+  | "deadline";
 
 export type CalendarParticipant = {
   id: string;
   name: string;
+  email?: string;
+  role?: "organizer" | "attendee" | "watcher";
 };
+
+export type CalendarEventSource =
+  | { provider: "local" }
+  | { provider: "google"; calendarId: string; eventId: string };
 
 export type CalendarEvent = {
   id: string;
-  name: string;
+  title: string;
   startsAt: string;
-  endsAt: string;
+  endsAt: string | null;
   isAllDay: boolean;
   type: CalendarEventType;
-  participants: CalendarParticipant[];
-  notes?: string;
+  description?: string;
+  owner: CalendarParticipant;
+  attendees: CalendarParticipant[];
+  location?: string;
+  timeZone?: string;
+  recurrenceRule?: string;
+  source?: CalendarEventSource;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type HydratedCalendarEvent = Omit<CalendarEvent, "startsAt" | "endsAt"> & {
   startsAt: Date;
-  endsAt: Date;
+  endsAt: Date | null;
 };
 
 export function hydrateEvent(event: CalendarEvent): HydratedCalendarEvent {
   return {
     ...event,
     startsAt: new Date(event.startsAt),
-    endsAt: new Date(event.endsAt),
+    endsAt: event.endsAt ? new Date(event.endsAt) : null,
   };
 }
 
@@ -44,178 +62,93 @@ export function hydrateEvents(events: CalendarEvent[]): HydratedCalendarEvent[] 
 function createDemoEvents(): CalendarEvent[] {
   const today = new Date();
   const base = startOfWeek(today, { weekStartsOn: WEEK_START });
+  const timestamp = new Date().toISOString();
+
+  const people: Record<string, CalendarParticipant> = {
+    alexey: { id: "p-1", name: "Alexey Primechaev", email: "alexey@warp.dev", role: "organizer" },
+    rahul: { id: "p-2", name: "Rahul Sonwalkar", email: "rahul@warp.dev" },
+    jordan: { id: "p-3", name: "Jordan Smith", email: "jordan@warp.dev" },
+    priya: { id: "p-4", name: "Priya Patel", email: "priya@warp.dev" },
+    emily: { id: "p-5", name: "Emily Chen", email: "emily@warp.dev" },
+    lucas: { id: "p-6", name: "Lucas Martínez", email: "lucas@warp.dev" },
+  };
 
   return [
     {
       id: "event-1",
-      name: "Weekly sync",
-      startsAt: addDays(base, 1).toISOString(),
-      endsAt: addDays(base, 1).toISOString(),
-      isAllDay: false,
-      type: "meeting",
-      participants: [
-        { id: "p-1", name: "Alexey Primechaev" },
-        { id: "p-2", name: "Rahul Sonwalkar" },
-      ],
-      notes: "Review sprint progress and blockers.",
+      title: "Alexey PTO",
+      startsAt: addDays(base, 3).toISOString(),
+      endsAt: addDays(base, 7).toISOString(),
+      isAllDay: true,
+      type: "time-off",
+      description: "Recharge before the next release cadence.",
+      owner: people.alexey,
+      attendees: [people.rahul],
+      timeZone: "America/Los_Angeles",
+      source: { provider: "local" },
+      createdAt: timestamp,
+      updatedAt: timestamp,
     },
     {
       id: "event-2",
-      name: "Product planning",
+      title: "Rahul’s Birthday",
       startsAt: addDays(base, 2).toISOString(),
-      endsAt: addDays(base, 2).toISOString(),
-      isAllDay: false,
-      type: "meeting",
-      participants: [
-        { id: "p-1", name: "Alexey Primechaev" },
-        { id: "p-3", name: "John Doe" },
-        { id: "p-4", name: "Jane Smith" },
-      ],
+      endsAt: addDays(base, 3).toISOString(),
+      isAllDay: true,
+      type: "birthday",
+      description: "Send a note or join for cake in the afternoon.",
+      owner: people.rahul,
+      attendees: [people.alexey, people.jordan, people.priya],
+      timeZone: "America/New_York",
+      source: { provider: "local" },
+      createdAt: timestamp,
+      updatedAt: timestamp,
     },
     {
       id: "event-3",
-      name: "Company holiday",
-      startsAt: addDays(base, 4).toISOString(),
-      endsAt: addDays(base, 4).toISOString(),
+      title: "Jordan 5-Year Anniversary",
+      startsAt: addDays(base, 5).toISOString(),
+      endsAt: addDays(base, 6).toISOString(),
       isAllDay: true,
-      type: "out-of-office",
-      participants: [],
+      type: "work-anniversary",
+      description: "Celebrate Jordan’s five-year milestone at Warp.",
+      owner: people.jordan,
+      attendees: [people.alexey, people.rahul, people.priya],
+      source: { provider: "local" },
+      createdAt: timestamp,
+      updatedAt: timestamp,
     },
     {
       id: "event-4",
-      name: "Launch milestone",
-      startsAt: addDays(base, 7).toISOString(),
-      endsAt: addDays(base, 7).toISOString(),
-      isAllDay: true,
-      type: "milestone",
-      participants: [{ id: "p-5", name: "Marketing Team" }],
-      notes: "Finalize launch assets and marketing pushes.",
+      title: "Warp Quarterly All-Hands",
+      startsAt: set(addDays(base, 1), { hours: 18, minutes: 0, seconds: 0, milliseconds: 0 }).toISOString(),
+      endsAt: set(addDays(base, 1), { hours: 19, minutes: 0, seconds: 0, milliseconds: 0 }).toISOString(),
+      isAllDay: false,
+      type: "company-event",
+      description: "Company-wide updates, demos, and Q&A.",
+      owner: people.alexey,
+      attendees: [people.rahul, people.jordan, people.priya, people.emily, people.lucas],
+      location: "Virtual · Zoom",
+      timeZone: "America/Los_Angeles",
+      source: { provider: "local" },
+      createdAt: timestamp,
+      updatedAt: timestamp,
     },
     {
       id: "event-5",
-      name: "Design review",
-      startsAt: addDays(base, 2).toISOString(),
-      endsAt: addDays(base, 2).toISOString(),
+      title: "Q2 Billing Deadline",
+      startsAt: set(addDays(base, 4), { hours: 21, minutes: 0, seconds: 0, milliseconds: 0 }).toISOString(),
+      endsAt: null,
       isAllDay: false,
-      type: "meeting",
-      participants: [
-        { id: "p-6", name: "Design Team" },
-        { id: "p-1", name: "Alexey Primechaev" },
-      ],
-      notes: "Evaluate latest design iterations for calendar UI.",
-    },
-    {
-      id: "event-6",
-      name: "Payroll sync",
-      startsAt: addDays(base, 2).toISOString(),
-      endsAt: addDays(base, 2).toISOString(),
-      isAllDay: false,
-      type: "reminder",
-      participants: [{ id: "p-7", name: "Finance" }],
-    },
-    {
-      id: "event-7",
-      name: "Support rotation",
-      startsAt: addDays(base, 5).toISOString(),
-      endsAt: addDays(base, 5).toISOString(),
-      isAllDay: false,
-      type: "reminder",
-      participants: [
-        { id: "p-8", name: "Support Team" },
-        { id: "p-2", name: "Rahul Sonwalkar" },
-      ],
-    },
-    {
-      id: "event-8",
-      name: "Quarterly results",
-      startsAt: addDays(base, 5).toISOString(),
-      endsAt: addDays(base, 5).toISOString(),
-      isAllDay: false,
-      type: "meeting",
-      participants: [
-        { id: "p-9", name: "Leadership" },
-        { id: "p-1", name: "Alexey Primechaev" },
-      ],
-      notes: "Share and analyze quarterly financial outcomes.",
-    },
-    {
-      id: "event-9",
-      name: "Customer feedback review",
-      startsAt: addDays(base, 5).toISOString(),
-      endsAt: addDays(base, 5).toISOString(),
-      isAllDay: false,
-      type: "meeting",
-      participants: [
-        { id: "p-6", name: "Design Team" },
-        { id: "p-10", name: "Product Marketing" },
-      ],
-    },
-    {
-      id: "event-10",
-      name: "Engineering retro",
-      startsAt: addDays(base, 3).toISOString(),
-      endsAt: addDays(base, 3).toISOString(),
-      isAllDay: false,
-      type: "meeting",
-      participants: [
-        { id: "p-11", name: "Engineering Team" },
-        { id: "p-1", name: "Alexey Primechaev" },
-      ],
-    },
-    {
-      id: "event-11",
-      name: "Security audit prep",
-      startsAt: addDays(base, 3).toISOString(),
-      endsAt: addDays(base, 3).toISOString(),
-      isAllDay: false,
-      type: "reminder",
-      participants: [
-        { id: "p-11", name: "Engineering Team" },
-        { id: "p-12", name: "Security" },
-      ],
-    },
-    {
-      id: "event-12",
-      name: "Office hours",
-      startsAt: addDays(base, 6).toISOString(),
-      endsAt: addDays(base, 6).toISOString(),
-      isAllDay: false,
-      type: "meeting",
-      participants: [{ id: "p-13", name: "Support Leads" }],
-    },
-    {
-      id: "event-13",
-      name: "Paid leave",
-      startsAt: addDays(base, 6).toISOString(),
-      endsAt: addDays(base, 7).toISOString(),
-      isAllDay: true,
-      type: "out-of-office",
-      participants: [{ id: "p-2", name: "Rahul Sonwalkar" }],
-      notes: "Extended weekend break.",
-    },
-    {
-      id: "event-14",
-      name: "Content brainstorm",
-      startsAt: addDays(base, 1).toISOString(),
-      endsAt: addDays(base, 1).toISOString(),
-      isAllDay: false,
-      type: "meeting",
-      participants: [
-        { id: "p-14", name: "Content Team" },
-        { id: "p-5", name: "Marketing Team" },
-      ],
-    },
-    {
-      id: "event-15",
-      name: "Hiring sync",
-      startsAt: addDays(base, 1).toISOString(),
-      endsAt: addDays(base, 1).toISOString(),
-      isAllDay: false,
-      type: "meeting",
-      participants: [
-        { id: "p-15", name: "Recruiting" },
-        { id: "p-1", name: "Alexey Primechaev" },
-      ],
+      type: "deadline",
+      description: "Submit expense approvals before finance closes the books.",
+      owner: people.emily,
+      attendees: [people.alexey, people.rahul],
+      recurrenceRule: "FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1",
+      timeZone: "America/Chicago",
+      source: { provider: "local" },
+      createdAt: timestamp,
+      updatedAt: timestamp,
     },
   ];
 }
