@@ -4,10 +4,13 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  addMinutes,
   addWeeks,
   differenceInCalendarDays,
+  endOfDay,
   format,
   parseISO,
+  set as setTime,
   startOfDay,
   startOfWeek,
 } from "date-fns";
@@ -28,6 +31,8 @@ import type { CalendarDayCellCreateEventPayload } from "@/components/calendar/da
 import type { CalendarDay } from "@/lib/calendar";
 import { buildCalendarDays } from "@/lib/calendar";
 import { CalendarInspector, CalendarInspectorSection } from "@/components/calendar/inspector";
+import type { CalendarEventFormValues } from "@/components/calendar/event-form";
+import { usePeople } from "@/lib/people-store";
 
 const WEEK_START = EVENTS_WEEK_START;
 const TOTAL_WEEKS_FORWARD = 120;
@@ -36,6 +41,8 @@ const TOTAL_WEEKS = TOTAL_WEEKS_FORWARD + TOTAL_WEEKS_BACKWARD;
 const INITIAL_VISIBLE_WEEKS = 12;
 const WEEK_VISIBILITY_BUFFER = 6;
 const TOP_SCROLL_OFFSET = 63;
+const TOP_BAR_HEIGHT = 51;
+const INSPECTOR_TOP_OFFSET = TOP_BAR_HEIGHT + 8;
 
 const DEFAULT_LOCAL_OWNER: CalendarParticipant = {
   id: "local-owner",
@@ -43,13 +50,44 @@ const DEFAULT_LOCAL_OWNER: CalendarParticipant = {
   role: "organizer",
 };
 
+const PERSON_EVENT_TYPES = new Set<CalendarEvent["type"]>([
+  "time-off",
+  "birthday",
+  "work-anniversary",
+]);
+
+const TITLE_REQUIRED_EVENT_TYPES = new Set<CalendarEvent["type"]>([
+  "company-event",
+  "deadline",
+]);
+
+const END_DATE_EVENT_TYPES = new Set<CalendarEvent["type"]>(["time-off", "company-event"]);
+const TIME_EVENT_TYPES = new Set<CalendarEvent["type"]>(["company-event", "deadline"]);
+const END_TIME_EVENT_TYPES = new Set<CalendarEvent["type"]>(["company-event"]);
+const LOCATION_EVENT_TYPES = new Set<CalendarEvent["type"]>(["company-event"]);
+const ATTENDEE_EVENT_TYPES = new Set<CalendarEvent["type"]>(["company-event"]);
+const RECURRENCE_EVENT_TYPES = new Set<CalendarEvent["type"]>(["deadline"]);
+
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [persistedEvents, setPersistedEvents] = useEvents();
+  const [people] = usePeople();
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
   const [selectedEvent, setSelectedEvent] = useState<HydratedCalendarEvent | null>(null);
+  const [draftEvent, setDraftEvent] = useState<CalendarEventFormValues | null>(null);
+  const [draftEventKey, setDraftEventKey] = useState<string | null>(null);
+  const [draftErrors, setDraftErrors] = useState<string[]>([]);
+  const [isDraftSaving, setIsDraftSaving] = useState(false);
   const selectedDaysRef = useRef(selectedDays);
   const selectedEventRef = useRef<HydratedCalendarEvent | null>(null);
+  const draftEventRef = useRef<CalendarEventFormValues | null>(null);
+  const peopleById = useMemo(() => {
+    const map = new Map<string, (typeof people)[number]>();
+    people.forEach((person) => {
+      map.set(person.id, person);
+    });
+    return map;
+  }, [people]);
   const [visibleWeekRange, setVisibleWeekRange] = useState<{ start: number; end: number }>(() => ({
     start: TOTAL_WEEKS_BACKWARD,
     end: Math.min(TOTAL_WEEKS, TOTAL_WEEKS_BACKWARD + INITIAL_VISIBLE_WEEKS),
@@ -233,38 +271,316 @@ export default function Home() {
     [],
   );
 
-  const handleCreateEvent = useCallback(
-    ({ start, end }: CalendarDayCellCreateEventPayload) => {
-      const timestamp = new Date().toISOString();
-      const newEvent: CalendarEvent = {
-        id: crypto.randomUUID(),
-        title: "New event",
-        startsAt: start.toISOString(),
-        endsAt: end.toISOString(),
-        isAllDay: false,
-        type: "company-event",
-        owner: { ...DEFAULT_LOCAL_OWNER },
-        attendees: [],
-        timeZone: localTimeZone,
-        source: { provider: "local" },
-        createdAt: timestamp,
-        updatedAt: timestamp,
+  const openCreationPane = useCallback(
+    (options?: { start?: Date; end?: Date }) => {
+      const resolveSelectionDate = () => {
+        if (selectedDays.size === 0) {
+          return null;
+        }
+
+        const sortedKeys = Array.from(selectedDays).sort();
+        const firstKey = sortedKeys[0];
+        try {
+          const parsedDate = parseISO(firstKey);
+          if (Number.isNaN(parsedDate.getTime())) {
+            return null;
+          }
+          return parsedDate;
+        } catch {
+          return null;
+        }
       };
 
-      const nextEvents = [...persistedEvents, newEvent];
-      setPersistedEvents(nextEvents);
+      const baseStart =
+        options?.start ??
+        (() => {
+          const selection = resolveSelectionDate();
+          if (selection) {
+            return setTime(selection, {
+              hours: 9,
+              minutes: 0,
+              seconds: 0,
+              milliseconds: 0,
+            });
+          }
+          const now = new Date();
+          const roundedMinutes = Math.floor(now.getMinutes() / 15) * 15;
+          return setTime(now, {
+            hours: now.getHours(),
+            minutes: roundedMinutes,
+            seconds: 0,
+            milliseconds: 0,
+          });
+        })();
 
+      const suggestedEnd =
+        options?.end && options.end.getTime() >= baseStart.getTime()
+          ? options.end
+          : addMinutes(baseStart, 30);
+
+      const initialValues: CalendarEventFormValues = {
+        title: "",
+        type: "company-event",
+        isAllDay: false,
+        startDate: format(baseStart, "yyyy-MM-dd"),
+        startTime: format(baseStart, "HH:mm"),
+        endDate: format(suggestedEnd, "yyyy-MM-dd"),
+        endTime: format(suggestedEnd, "HH:mm"),
+        timeZone: localTimeZone,
+        location: "",
+        description: "",
+        ownerName: DEFAULT_LOCAL_OWNER.name,
+        ownerEmail: "",
+        attendeesInput: "",
+        recurrenceRule: "",
+        personId: "",
+      };
+
+      setDraftEvent(initialValues);
+      setDraftEventKey(crypto.randomUUID());
+      setDraftErrors([]);
+      setIsDraftSaving(false);
+      setSelectedEvent(null);
+
+      const startDayKey = format(baseStart, "yyyy-MM-dd");
+      setSelectedDays(new Set([startDayKey]));
+      setIsSidebarOpen(true);
+      ensureWeekVisible(getWeekIndexForDate(baseStart));
+    },
+    [ensureWeekVisible, getWeekIndexForDate, localTimeZone, selectedDays],
+  );
+
+  const handleCreateIntent = useCallback(
+    (payload: CalendarDayCellCreateEventPayload) => {
+      openCreationPane({ start: payload.start, end: payload.end });
+    },
+    [openCreationPane],
+  );
+
+  const handleRequestNewEvent = useCallback(() => {
+    openCreationPane();
+  }, [openCreationPane]);
+
+  const handleDraftCancel = useCallback(() => {
+    setDraftEvent(null);
+    setDraftEventKey(null);
+    setDraftErrors([]);
+    setIsDraftSaving(false);
+  }, []);
+
+  const handleDraftSubmit = useCallback(
+    (values: CalendarEventFormValues) => {
+      const validationErrors: string[] = [];
+      const requiresPerson = PERSON_EVENT_TYPES.has(values.type);
+      const requiresTitle = TITLE_REQUIRED_EVENT_TYPES.has(values.type);
+      const allowEndDate = END_DATE_EVENT_TYPES.has(values.type);
+      const allowTime = TIME_EVENT_TYPES.has(values.type);
+      const allowEndTime = END_TIME_EVENT_TYPES.has(values.type);
+      const allowLocation = LOCATION_EVENT_TYPES.has(values.type);
+      const allowAttendees = ATTENDEE_EVENT_TYPES.has(values.type);
+      const allowRecurrence = RECURRENCE_EVENT_TYPES.has(values.type);
+      const trimmedTitle = values.title.trim();
+      const selectedPerson = requiresPerson ? peopleById.get(values.personId) ?? null : null;
+
+      if (requiresPerson && !selectedPerson) {
+        validationErrors.push(
+          peopleById.size === 0
+            ? "Add people before creating this event type."
+            : "Select a person for this event type.",
+        );
+      }
+
+      if (requiresTitle && !trimmedTitle) {
+        validationErrors.push("Title is required.");
+      }
+
+      if (!values.startDate) {
+        validationErrors.push("Start date is required.");
+      }
+
+      let startDate = values.startDate ? parseISO(values.startDate) : null;
+      if (!startDate || Number.isNaN(startDate.getTime())) {
+        validationErrors.push("Start date is invalid.");
+      }
+
+      const parseTime = (input: string | undefined, fallback: { hours: number; minutes: number }) => {
+        if (!input) {
+          return fallback;
+        }
+        const [hourPart, minutePart] = input.split(":");
+        const hours = Number.parseInt(hourPart ?? "", 10);
+        const minutes = Number.parseInt(minutePart ?? "", 10);
+        if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+          return fallback;
+        }
+        return { hours, minutes };
+      };
+
+      if (validationErrors.length > 0 || !startDate) {
+        setDraftErrors(validationErrors);
+        return;
+      }
+
+      const startTimeParts = parseTime(values.startTime, { hours: 9, minutes: 0 });
+      const isAllDay = allowTime ? values.isAllDay : true;
+      const start = isAllDay
+        ? startOfDay(startDate)
+        : setTime(startDate, {
+            hours: startTimeParts.hours,
+            minutes: startTimeParts.minutes,
+            seconds: 0,
+            milliseconds: 0,
+          });
+
+      let end: Date | null = null;
+
+      if (isAllDay) {
+        let endDateSource = startDate;
+        if (allowEndDate && values.endDate) {
+          const parsedEndDate = parseISO(values.endDate);
+          if (!parsedEndDate || Number.isNaN(parsedEndDate.getTime())) {
+            validationErrors.push("End date is invalid.");
+          } else if (parsedEndDate.getTime() < startDate.getTime()) {
+            validationErrors.push("End date must be on or after the start date.");
+          } else {
+            endDateSource = parsedEndDate;
+          }
+        }
+        end = endOfDay(endDateSource);
+      } else if (allowTime && (allowEndDate || (allowEndTime && values.endTime))) {
+        const endDateString = allowEndDate && values.endDate ? values.endDate : values.startDate;
+        const endDate = parseISO(endDateString);
+        if (!endDate || Number.isNaN(endDate.getTime())) {
+          validationErrors.push("End date is invalid.");
+        } else {
+          if (allowEndDate && endDate.getTime() < startDate.getTime()) {
+            validationErrors.push("End date must be on or after the start date.");
+          }
+          if (allowEndTime && values.endTime) {
+            const endTimeParts = parseTime(values.endTime, startTimeParts);
+            end = setTime(endDate, {
+              hours: endTimeParts.hours,
+              minutes: endTimeParts.minutes,
+              seconds: 0,
+              milliseconds: 0,
+            });
+          }
+        }
+      }
+
+      if (validationErrors.length > 0) {
+        setDraftErrors(validationErrors);
+        return;
+      }
+
+      if (end && end.getTime() < start.getTime()) {
+        validationErrors.push("End time must be after the start time.");
+      }
+
+      if (validationErrors.length > 0) {
+        setDraftErrors(validationErrors);
+        return;
+      }
+
+      const description = values.description.trim();
+      const location = allowLocation ? values.location.trim() : "";
+      const recurrence = allowRecurrence ? values.recurrenceRule.trim() : "";
+      const attendees = allowAttendees
+        ? values.attendeesInput
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0)
+            .map((line) => {
+              const match = line.match(/<([^>]+)>/);
+              const email = match?.[1]?.trim();
+              const name = match ? line.replace(match[0], "").trim() : line;
+              const resolvedName = name || email || "Attendee";
+              return {
+                id: crypto.randomUUID(),
+                name: resolvedName,
+                ...(email ? { email } : {}),
+              };
+            })
+        : [];
+
+      const nowIso = new Date().toISOString();
+      const timeZone = (values.timeZone || localTimeZone).trim() || localTimeZone;
+
+      const ownerParticipant: CalendarParticipant =
+        requiresPerson && selectedPerson
+          ? {
+              id: selectedPerson.id,
+              name: selectedPerson.name,
+              email: selectedPerson.email,
+              role: "organizer",
+            }
+          : {
+              id: DEFAULT_LOCAL_OWNER.id,
+              name: DEFAULT_LOCAL_OWNER.name,
+              email: undefined,
+              role: DEFAULT_LOCAL_OWNER.role,
+            };
+
+      const resolvedTitle =
+        requiresPerson && selectedPerson
+          ? values.type === "birthday"
+            ? `${selectedPerson.name}'s Birthday`
+            : values.type === "time-off"
+              ? `${selectedPerson.name} Time Off`
+              : `${selectedPerson.name}'s Work Anniversary`
+          : trimmedTitle || "Untitled Event";
+
+      const normalizedAttendees = allowAttendees
+        ? attendees.filter((attendee) => {
+            if (attendee.email && ownerParticipant.email) {
+              return attendee.email.toLowerCase() !== ownerParticipant.email.toLowerCase();
+            }
+            if (attendee.id && attendee.id === ownerParticipant.id) {
+              return false;
+            }
+            return attendee.name !== ownerParticipant.name;
+          })
+        : [];
+
+      const newEvent: CalendarEvent = {
+        id: crypto.randomUUID(),
+        title: resolvedTitle,
+        startsAt: start.toISOString(),
+        endsAt: end ? end.toISOString() : null,
+        isAllDay,
+        type: values.type,
+        description: description || undefined,
+        owner: ownerParticipant,
+        attendees: normalizedAttendees,
+        location: location || undefined,
+        timeZone,
+        recurrenceRule: recurrence || undefined,
+        source: { provider: "local" },
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+
+      setIsDraftSaving(true);
+      try {
+        setPersistedEvents([...persistedEvents, newEvent]);
       const hydratedNewEvent = hydrateEvent(newEvent);
       setSelectedEvent(hydratedNewEvent);
+        setDraftEvent(null);
+        setDraftEventKey(null);
+        setDraftErrors([]);
       setSelectedDays(new Set([format(start, "yyyy-MM-dd")]));
       setIsSidebarOpen(true);
       ensureWeekVisible(getWeekIndexForDate(start));
+      } finally {
+        setIsDraftSaving(false);
+      }
     },
     [
       ensureWeekVisible,
       getWeekIndexForDate,
       localTimeZone,
       persistedEvents,
+      peopleById,
       setPersistedEvents,
     ],
   );
@@ -403,6 +719,7 @@ export default function Home() {
   };
 
   const handleEventSelect = (calendarEvent: HydratedCalendarEvent) => {
+    handleDraftCancel();
     ensureWeekVisible(getWeekIndexForDate(calendarEvent.startsAt));
     setSelectedEvent(calendarEvent);
     setIsSidebarOpen(true);
@@ -413,10 +730,11 @@ export default function Home() {
   };
 
   const toggleSidebar = () => {
-    if (selectedDays.size > 0 || selectedEvent) {
+    if (selectedDays.size > 0 || selectedEvent || draftEvent) {
       if (isSidebarOpen) {
         setSelectedDays(new Set());
         setSelectedEvent(null);
+        handleDraftCancel();
         setIsSidebarOpen(false);
       } else {
         setIsSidebarOpen(true);
@@ -433,6 +751,10 @@ export default function Home() {
   useEffect(() => {
     selectedEventRef.current = selectedEvent;
   }, [selectedEvent]);
+
+  useEffect(() => {
+    draftEventRef.current = draftEvent;
+  }, [draftEvent]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -455,9 +777,16 @@ export default function Home() {
 
       event.preventDefault();
       setIsSidebarOpen((previous) => {
-        if (selectedDaysRef.current.size > 0 || selectedEventRef.current) {
+        if (
+          selectedDaysRef.current.size > 0 ||
+          selectedEventRef.current ||
+          draftEventRef.current
+        ) {
           setSelectedDays(new Set());
           setSelectedEvent(null);
+          if (draftEventRef.current) {
+            handleDraftCancel();
+          }
           return false;
         }
         return !previous;
@@ -466,7 +795,7 @@ export default function Home() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [handleDraftCancel]);
 
   return (
     <div className="force-light flex h-screen bg-bg text-g8">
@@ -546,7 +875,7 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-          <div className="pointer-events-auto relative z-20 flex items-center justify-end">
+          <div className="pointer-events-auto absolute right-[7px] top-[7px] z-20 flex items-center">
             <Button
               variant="secondary"
               size="sm"
@@ -575,7 +904,7 @@ export default function Home() {
               selectedEventId={selectedEventId}
               onDaySelect={toggleDaySelection}
               onEventSelect={handleEventSelect}
-              onEventCreate={handleCreateEvent}
+              onEventCreate={handleCreateIntent}
               onRequestRangeChange={expandWeekRange}
               scrollContainerRef={calendarScrollRef}
               todayWeekIndex={todayWeekIndex}
@@ -584,13 +913,16 @@ export default function Home() {
             />
                 </div>
 
-          <aside className={cn(
-            "pointer-events-none absolute bottom-[7px] right-[7px] top-0 flex w-[288px] pt-[7px]",
+          <aside
+            style={{ top: INSPECTOR_TOP_OFFSET }}
+            className={cn(
+              "pointer-events-none absolute bottom-[7px] right-[7px] flex w-[288px] pt-[7px]",
             isSidebarOpen ? "z-10" : "z-0",
-          )}>
+            )}
+          >
             <div
               className={cn(
-                "relative flex h-full w-full flex-col overflow-hidden rounded-md border border-border bg-white transition-transform duration-200 ease-out",
+                "relative flex h-full w-full flex-col overflow-hidden rounded-[13px] border border-border bg-white transition-transform duration-200 ease-out",
                 isSidebarOpen
                   ? "pointer-events-auto translate-x-0"
                   : "pointer-events-none translate-x-full",
@@ -603,6 +935,14 @@ export default function Home() {
                 onSelectEvent={handleEventSelect}
                 onCloseEvent={handleEventClose}
                 localTimeZone={localTimeZone}
+                onRequestCreate={handleRequestNewEvent}
+                draftEvent={draftEvent}
+                onSubmitDraft={handleDraftSubmit}
+                onCancelDraft={handleDraftCancel}
+                draftErrors={draftErrors}
+                isDraftSaving={isDraftSaving}
+                draftFormKey={draftEventKey}
+                people={people}
               />
             </div>
           </aside>

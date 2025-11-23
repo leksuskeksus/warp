@@ -2,10 +2,13 @@
 
 import { format } from "date-fns";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { HydratedCalendarEvent } from "@/lib/events-store";
+import { CalendarPerson } from "@/lib/people-store";
 
 import { CalendarEventDetails } from "./event-details";
+import { CalendarEventForm, CalendarEventFormValues } from "./event-form";
 import { CalendarInspectorEvent } from "./inspector-event";
 
 export type CalendarInspectorSection = {
@@ -21,6 +24,14 @@ type CalendarInspectorProps = {
   onCloseEvent: () => void;
   localTimeZone: string;
   className?: string;
+  onRequestCreate?: () => void;
+  draftEvent?: CalendarEventFormValues | null;
+  onSubmitDraft?: (values: CalendarEventFormValues) => void;
+  onCancelDraft?: () => void;
+  draftErrors?: string[];
+  isDraftSaving?: boolean;
+  draftFormKey?: string | null;
+  people: CalendarPerson[];
 };
 
 export function CalendarInspector({
@@ -31,10 +42,56 @@ export function CalendarInspector({
   onCloseEvent,
   localTimeZone,
   className,
+  onRequestCreate,
+  draftEvent = null,
+  onSubmitDraft,
+  onCancelDraft,
+  draftErrors = [],
+  isDraftSaving = false,
+  draftFormKey = null,
+  people,
 }: CalendarInspectorProps) {
+  const showCreationForm = Boolean(draftEvent);
+  const showEventDetails = Boolean(selectedEvent) && !showCreationForm;
+
   return (
-    <div className={cn("scrollbar-hide flex-1 overflow-y-auto px-[20px] pb-[20px] pt-[67px] text-body-2 text-fg3", className)}>
-      {selectedEvent ? (
+    <div
+      className={cn(
+        "scrollbar-hide flex-1 overflow-y-auto px-[20px] pb-[24px] text-body-2 text-fg3",
+        className,
+      )}
+    >
+      <div className="sticky top-0 z-20 -mx-[20px] mb-[20px] flex h-[51px] items-center justify-between gap-[12px] bg-[rgba(255,255,255,0.92)] px-[6px] py-[7px] backdrop-blur">
+        <Button
+          variant="secondary"
+          size="sm"
+          className="flex h-[35px] items-center rounded-md px-[14px] text-button-2 font-medium"
+        >
+          Filter
+        </Button>
+        {onRequestCreate && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onRequestCreate}
+            className="h-[35px] px-[12px]"
+          >
+            New event
+          </Button>
+        )}
+      </div>
+
+      {showCreationForm && draftEvent && onSubmitDraft && onCancelDraft ? (
+        <CalendarEventForm
+          key={draftFormKey ?? "calendar-event-form"}
+          initialValues={draftEvent}
+          onSubmit={onSubmitDraft}
+          onCancel={onCancelDraft}
+          errors={draftErrors}
+          isSaving={isDraftSaving}
+          people={people}
+        />
+      ) : showEventDetails && selectedEvent ? (
         <CalendarEventDetails event={selectedEvent} onClose={onCloseEvent} localTimeZone={localTimeZone} />
       ) : sections.length === 0 ? (
         <div className="flex h-full items-center justify-center text-caption text-fg4">

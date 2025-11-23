@@ -348,9 +348,11 @@ export function CalendarDayCell({
     <div
       className={cn(
         "relative flex h-full w-full flex-col rounded-[12px] border border-transparent bg-bg px-[14px] pb-[14px] pt-[12px] text-fg transition-all duration-150",
-        "group-hover:border-border group-hover:shadow-[0_0_0_1px_rgba(0,0,0,0.08)] group-active:border-success/60 group-active:shadow-[0_0_0_1px_rgba(22,163,74,0.45)]",
-        day.isToday && "bg-bg2 border-border",
-        day.isSelected && "border border-success shadow-[0_0_0_1px_rgba(22,163,74,0.65)]",
+        !day.isSelected &&
+          "group-hover:border-border group-hover:shadow-[0_0_0_1px_rgba(0,0,0,0.08)] group-active:border-success/60 group-active:shadow-[0_0_0_1px_rgba(22,163,74,0.45)]",
+        day.isToday && "bg-bg2",
+        day.isToday && !day.isSelected && "border-border",
+        day.isSelected && "border-2 border-[#3AD33A]",
         day.isDimmed && "opacity-30",
       )}
     >

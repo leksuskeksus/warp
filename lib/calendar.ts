@@ -14,6 +14,57 @@ export function getEventTypeLabel(type: CalendarEventType): string {
   return EVENT_TYPE_LABELS[type];
 }
 
+type PaletteTone = "light" | "dark";
+
+const EVENT_TYPE_COLOR_MAP: Record<CalendarEventType, { background: string; tone: PaletteTone }> = {
+  "time-off": { background: "var(--color-green-500)", tone: "light" },
+  birthday: { background: "var(--color-pink-600)", tone: "light" },
+  "work-anniversary": { background: "var(--color-purple-500)", tone: "light" },
+  "company-event": { background: "var(--color-blue-500)", tone: "light" },
+  deadline: { background: "var(--color-red-600)", tone: "light" },
+};
+
+export type EventColorPalette = {
+  background: string;
+  foreground: string;
+  muted: string;
+  subtle: string;
+  ring: string;
+};
+
+const LIGHT_FOREGROUND = "var(--color-white)";
+const DARK_FOREGROUND = "var(--fg)";
+
+const LIGHT_MUTED = "rgba(255,255,255,0.86)";
+const LIGHT_SUBTLE = "rgba(255,255,255,0.7)";
+const LIGHT_RING = "rgba(255,255,255,0.72)";
+
+const DARK_MUTED = "rgba(20,20,20,0.7)";
+const DARK_SUBTLE = "rgba(20,20,20,0.54)";
+const DARK_RING = "rgba(16,16,16,0.24)";
+
+export function getEventTypePalette(type: CalendarEventType): EventColorPalette {
+  const { background, tone } = EVENT_TYPE_COLOR_MAP[type];
+
+  if (tone === "light") {
+    return {
+      background,
+      foreground: LIGHT_FOREGROUND,
+      muted: LIGHT_MUTED,
+      subtle: LIGHT_SUBTLE,
+      ring: LIGHT_RING,
+    };
+  }
+
+  return {
+    background,
+    foreground: DARK_FOREGROUND,
+    muted: DARK_MUTED,
+    subtle: DARK_SUBTLE,
+    ring: DARK_RING,
+  };
+}
+
 export function formatEventSchedule(event: HydratedCalendarEvent): string {
   const start = event.startsAt;
   const end = event.endsAt ?? event.startsAt;
