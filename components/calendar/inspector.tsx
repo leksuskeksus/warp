@@ -32,6 +32,7 @@ type CalendarInspectorProps = {
   onCancelDraft?: () => void;
   onDraftChange?: (values: CalendarEventFormValues) => void;
   draftErrors?: string[];
+  draftConflicts?: HydratedCalendarEvent[];
   isDraftSaving?: boolean;
   draftFormKey?: string | null;
   people: CalendarPerson[];
@@ -52,6 +53,7 @@ export function CalendarInspector({
   onCancelDraft,
   onDraftChange,
   draftErrors = [],
+  draftConflicts = [],
   isDraftSaving = false,
   draftFormKey = null,
   people,
@@ -154,6 +156,7 @@ export function CalendarInspector({
           onSubmitRef={(submitFn) => {
             formSubmitRef.current = submitFn;
           }}
+          conflicts={draftConflicts}
           people={people}
         />
       ) : showEventDetails && selectedEvent ? (

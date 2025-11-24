@@ -30,7 +30,7 @@ import {
 import { CalendarView, CalendarWeekViewportEvent } from "@/components/calendar/calendar-view";
 import type { CalendarDayCellCreateEventPayload } from "@/components/calendar/day-cell";
 import type { CalendarDay } from "@/lib/calendar";
-import { buildCalendarDays } from "@/lib/calendar";
+import { buildCalendarDays, findConflictingEventsWithSharedParticipants } from "@/lib/calendar";
 import { CalendarInspector, CalendarInspectorSection } from "@/components/calendar/inspector";
 import type { CalendarEventFormValues } from "@/components/calendar/event-form";
 import { usePeople } from "@/lib/people-store";
@@ -79,8 +79,10 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState<HydratedCalendarEvent | null>(null);
   const [draftEvent, setDraftEvent] = useState<CalendarEventFormValues | null>(null);
   const [draftEventKey, setDraftEventKey] = useState<string | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [draftErrors, setDraftErrors] = useState<string[]>([]);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [draftConflicts, setDraftConflicts] = useState<HydratedCalendarEvent[]>([]);
   const selectedDaysRef = useRef(selectedDays);
   const selectedEventRef = useRef<HydratedCalendarEvent | null>(null);
   const draftEventRef = useRef<CalendarEventFormValues | null>(null);
@@ -316,6 +318,27 @@ export default function Home() {
       return null;
     }
   }, [draftEvent, draftEventKey, peopleById, people, localTimeZone]);
+
+  // Detect conflicts when draft event changes (only if events share participants)
+  useEffect(() => {
+    if (!draftPreviewEvent) {
+      setDraftConflicts([]);
+      return;
+    }
+
+    const hydratedEvents = hydrateEvents(persistedEvents);
+    const conflicts = findConflictingEventsWithSharedParticipants(
+      {
+        startsAt: draftPreviewEvent.startsAt,
+        endsAt: draftPreviewEvent.endsAt,
+        isAllDay: draftPreviewEvent.isAllDay,
+        owner: draftPreviewEvent.owner,
+        attendees: draftPreviewEvent.attendees,
+      },
+      hydratedEvents,
+    );
+    setDraftConflicts(conflicts);
+  }, [draftPreviewEvent, persistedEvents]);
 
   // When creating a draft event, treat it as selected so other events dim
   const effectiveSelectedEvent = draftPreviewEvent || selectedEvent;
@@ -580,7 +603,9 @@ export default function Home() {
 
       setDraftEvent(initialValues);
       setDraftEventKey(crypto.randomUUID());
+      setEditingEventId(null);
       setDraftErrors([]);
+      setDraftConflicts([]);
       setIsDraftSaving(false);
       setSelectedEvent(null);
 
@@ -604,7 +629,9 @@ export default function Home() {
   const handleDraftCancel = useCallback(() => {
     setDraftEvent(null);
     setDraftEventKey(null);
+    setEditingEventId(null);
     setDraftErrors([]);
+    setDraftConflicts([]);
     setIsDraftSaving(false);
   }, []);
 
@@ -782,43 +809,99 @@ export default function Home() {
           })
         : [];
 
-      const newEvent: CalendarEvent = {
-        id: crypto.randomUUID(),
-        title: resolvedTitle,
-        startsAt: start.toISOString(),
-        endsAt: end ? end.toISOString() : null,
-        isAllDay,
-        type: values.type,
-        description: description || undefined,
-        owner: ownerParticipant,
-        attendees: normalizedAttendees,
-        location: location || undefined,
-        timeZone,
-        recurrenceRule: recurrence || undefined,
-        source: { provider: "local" },
-        createdAt: nowIso,
-        updatedAt: nowIso,
-      };
-
       setIsDraftSaving(true);
       try {
-        setPersistedEvents([...persistedEvents, newEvent]);
-        const hydratedNewEvent = hydrateEvent(newEvent);
+        let updatedEvent: CalendarEvent;
+        let hydratedUpdatedEvent: HydratedCalendarEvent;
+
+        if (editingEventId) {
+          // Update existing event
+          const existingEvent = persistedEvents.find((e) => e.id === editingEventId);
+          if (!existingEvent) {
+            // Event not found, treat as new event
+            updatedEvent = {
+              id: crypto.randomUUID(),
+              title: resolvedTitle,
+              startsAt: start.toISOString(),
+              endsAt: end ? end.toISOString() : null,
+              isAllDay,
+              type: values.type,
+              description: description || undefined,
+              owner: ownerParticipant,
+              attendees: normalizedAttendees,
+              location: location || undefined,
+              timeZone,
+              recurrenceRule: recurrence || undefined,
+              source: { provider: "local" },
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            };
+          } else {
+            // Update existing event, preserve original createdAt and id
+            updatedEvent = {
+              ...existingEvent,
+              title: resolvedTitle,
+              startsAt: start.toISOString(),
+              endsAt: end ? end.toISOString() : null,
+              isAllDay,
+              type: values.type,
+              description: description || undefined,
+              owner: ownerParticipant,
+              attendees: normalizedAttendees,
+              location: location || undefined,
+              timeZone,
+              recurrenceRule: recurrence || undefined,
+              updatedAt: nowIso,
+            };
+          }
+          
+          // Update the event in the array
+          setPersistedEvents(
+            persistedEvents.map((e) => (e.id === editingEventId ? updatedEvent : e)),
+          );
+          hydratedUpdatedEvent = hydrateEvent(updatedEvent);
+        } else {
+          // Create new event
+          updatedEvent = {
+            id: crypto.randomUUID(),
+            title: resolvedTitle,
+            startsAt: start.toISOString(),
+            endsAt: end ? end.toISOString() : null,
+            isAllDay,
+            type: values.type,
+            description: description || undefined,
+            owner: ownerParticipant,
+            attendees: normalizedAttendees,
+            location: location || undefined,
+            timeZone,
+            recurrenceRule: recurrence || undefined,
+            source: { provider: "local" },
+            createdAt: nowIso,
+            updatedAt: nowIso,
+          };
+          
+          setPersistedEvents([...persistedEvents, updatedEvent]);
+          hydratedUpdatedEvent = hydrateEvent(updatedEvent);
+        }
+
         // Clear draft first
         setDraftEvent(null);
         setDraftEventKey(null);
+        setEditingEventId(null);
         setDraftErrors([]);
-        // Clear day selection when selecting the new event
+        setDraftConflicts([]);
+        // Clear day selection when selecting the event
         setSelectedDays(new Set());
-        // Then select the new event the same way as clicking an existing event
+        // Then select the event the same way as clicking an existing event
         ensureWeekVisible(getWeekIndexForDate(start));
-        setSelectedEvent(hydratedNewEvent);
+        setSelectedEvent(hydratedUpdatedEvent);
         setIsSidebarOpen(true);
       } finally {
         setIsDraftSaving(false);
       }
     },
     [
+      editingEventId,
       ensureWeekVisible,
       getWeekIndexForDate,
       localTimeZone,
@@ -1145,7 +1228,9 @@ export default function Home() {
 
       setDraftEvent(initialValues);
       setDraftEventKey(crypto.randomUUID());
+      setEditingEventId(event.id);
       setDraftErrors([]);
+      setDraftConflicts([]);
       setIsDraftSaving(false);
       setSelectedEvent(null);
 
@@ -1341,6 +1426,7 @@ export default function Home() {
                 onCancelDraft={handleDraftCancel}
                 onDraftChange={setDraftEvent}
                 draftErrors={draftErrors}
+                draftConflicts={draftConflicts}
                 isDraftSaving={isDraftSaving}
                 draftFormKey={draftEventKey}
                 people={people}

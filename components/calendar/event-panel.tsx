@@ -25,6 +25,7 @@ type CalendarEventPanelProps =
       onValidationChange?: (isValid: boolean) => void;
       onSubmitRef?: (submitFn: () => void) => void;
       onChange?: (values: CalendarEventFormValues) => void;
+      conflicts?: HydratedCalendarEvent[];
       people?: CalendarPerson[];
     };
 
@@ -155,6 +156,7 @@ function CalendarEventPanelEdit({
   onValidationChange,
   onSubmitRef,
   onChange,
+  conflicts = [],
   people,
 }: {
   initialValues: CalendarEventFormValues;
@@ -164,6 +166,7 @@ function CalendarEventPanelEdit({
   onValidationChange?: (isValid: boolean) => void;
   onSubmitRef?: (submitFn: () => void) => void;
   onChange?: (values: CalendarEventFormValues) => void;
+  conflicts?: HydratedCalendarEvent[];
   people?: CalendarPerson[];
 }) {
   return (
@@ -174,6 +177,7 @@ function CalendarEventPanelEdit({
       onValidationChange={onValidationChange}
       onSubmitRef={onSubmitRef}
       onChange={onChange}
+      conflicts={conflicts}
       people={people}
     />
   );

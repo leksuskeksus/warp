@@ -301,5 +301,110 @@ export function buildCalendarDays({
   });
 }
 
+/**
+ * Checks if two events overlap in time.
+ * Handles both all-day and timed events correctly.
+ */
+export function doEventsOverlap(
+  event1: { startsAt: Date; endsAt: Date | null; isAllDay: boolean },
+  event2: { startsAt: Date; endsAt: Date | null; isAllDay: boolean },
+): boolean {
+  const start1 = event1.startsAt.getTime();
+  const end1 = event1.endsAt ? event1.endsAt.getTime() : event1.startsAt.getTime();
+  const start2 = event2.startsAt.getTime();
+  const end2 = event2.endsAt ? event2.endsAt.getTime() : event2.startsAt.getTime();
+
+  // All-day events overlap if they share any day
+  if (event1.isAllDay || event2.isAllDay) {
+    const day1Start = startOfDay(event1.startsAt).getTime();
+    const day1End = startOfDay(event1.endsAt ?? event1.startsAt).getTime();
+    const day2Start = startOfDay(event2.startsAt).getTime();
+    const day2End = startOfDay(event2.endsAt ?? event2.startsAt).getTime();
+    
+    // Overlap if day ranges intersect
+    return day1Start <= day2End && day2Start <= day1End;
+  }
+
+  // Timed events overlap if their time ranges intersect
+  // Two events overlap if: start1 < end2 && start2 < end1
+  return start1 < end2 && start2 < end1;
+}
+
+/**
+ * Checks if two participants are the same person.
+ * Compares by ID, personId, email, or name.
+ */
+function areParticipantsSame(
+  p1: { id?: string; personId?: string; email?: string; name: string },
+  p2: { id?: string; personId?: string; email?: string; name: string },
+): boolean {
+  // Compare by ID or personId first (most reliable)
+  if (p1.id && p2.id && p1.id === p2.id) return true;
+  if (p1.personId && p2.personId && p1.personId === p2.personId) return true;
+  
+  // Compare by email (case-insensitive)
+  if (p1.email && p2.email && p1.email.toLowerCase() === p2.email.toLowerCase()) return true;
+  
+  // Compare by name as fallback
+  return p1.name === p2.name;
+}
+
+/**
+ * Checks if two events share any participants (owner or attendees).
+ */
+function doEventsShareParticipants(
+  event1: { owner: { id?: string; personId?: string; email?: string; name: string }; attendees: Array<{ id?: string; personId?: string; email?: string; name: string }> },
+  event2: { owner: { id?: string; personId?: string; email?: string; name: string }; attendees: Array<{ id?: string; personId?: string; email?: string; name: string }> },
+): boolean {
+  // Get all participants from event1 (owner + attendees)
+  const event1Participants = [event1.owner, ...event1.attendees];
+  
+  // Get all participants from event2 (owner + attendees)
+  const event2Participants = [event2.owner, ...event2.attendees];
+  
+  // Check if any participant from event1 matches any participant from event2
+  return event1Participants.some((p1) =>
+    event2Participants.some((p2) => areParticipantsSame(p1, p2)),
+  );
+}
+
+/**
+ * Finds all events that conflict (overlap) with a given event.
+ * Returns an array of conflicting events.
+ */
+export function findConflictingEvents(
+  newEvent: { startsAt: Date; endsAt: Date | null; isAllDay: boolean },
+  existingEvents: HydratedCalendarEvent[],
+): HydratedCalendarEvent[] {
+  return existingEvents.filter((existingEvent) =>
+    doEventsOverlap(newEvent, existingEvent),
+  );
+}
+
+/**
+ * Finds all events that conflict (overlap) with a given event AND share participants.
+ * Only returns conflicts where the same people are involved in both events.
+ */
+export function findConflictingEventsWithSharedParticipants(
+  newEvent: {
+    startsAt: Date;
+    endsAt: Date | null;
+    isAllDay: boolean;
+    owner: { id?: string; personId?: string; email?: string; name: string };
+    attendees: Array<{ id?: string; personId?: string; email?: string; name: string }>;
+  },
+  existingEvents: HydratedCalendarEvent[],
+): HydratedCalendarEvent[] {
+  return existingEvents.filter((existingEvent) => {
+    // First check if events overlap in time
+    if (!doEventsOverlap(newEvent, existingEvent)) {
+      return false;
+    }
+    
+    // Then check if they share participants
+    return doEventsShareParticipants(newEvent, existingEvent);
+  });
+}
+
 
 

@@ -546,68 +546,70 @@ export function CalendarDayCell({
       </div>
       <div
         ref={eventContainerRef}
-        className="relative flex flex-1 flex-col gap-[2px] overflow-hidden min-h-0"
+        className="relative flex flex-1 flex-col min-h-0"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         role="presentation"
       >
-        {(() => {
-          const { renderedEvents, timeOffEvents } = groupedEventsData;
+        <div className="relative flex flex-1 flex-col gap-[2px] overflow-hidden min-h-0">
+          {(() => {
+            const { renderedEvents, timeOffEvents } = groupedEventsData;
 
-          // Apply visibility limit
-          const eventsToShow = visibleEventCount !== null && visibleEventCount < renderedEvents.length
-            ? renderedEvents.slice(0, visibleEventCount)
-            : renderedEvents;
-          
-          const remainingCount = renderedEvents.length - eventsToShow.length;
-          const showMoreEvents = remainingCount > 0;
+            // Apply visibility limit
+            const eventsToShow = visibleEventCount !== null && visibleEventCount < renderedEvents.length
+              ? renderedEvents.slice(0, visibleEventCount)
+              : renderedEvents;
+            
+            const remainingCount = renderedEvents.length - eventsToShow.length;
+            const showMoreEvents = remainingCount > 0;
 
-          return (
-            <>
-              {eventsToShow.map((event) => {
-                const isGroupedTimeOff = event.id.startsWith("grouped-time-off-");
-                const isSelected = selectedEventId === event.id;
-                
-                // For grouped time-off, check if any of the underlying events is selected
-                const isAnyTimeOffSelected = isGroupedTimeOff 
-                  ? timeOffEvents.some((e) => e.id === selectedEventId)
-                  : false;
-                
-                const actualIsSelected = isGroupedTimeOff ? isAnyTimeOffSelected : isSelected;
-                
-                const isPartOfSelectedRecurringSeries =
-                  selectedEvent && !actualIsSelected && selectedEventId
-                    ? (isGroupedTimeOff
-                        ? timeOffEvents.some((e) => areEventsInSameRecurringSeries(e, selectedEvent))
-                        : areEventsInSameRecurringSeries(event, selectedEvent))
+            return (
+              <>
+                {eventsToShow.map((event) => {
+                  const isGroupedTimeOff = event.id.startsWith("grouped-time-off-");
+                  const isSelected = selectedEventId === event.id;
+                  
+                  // For grouped time-off, check if any of the underlying events is selected
+                  const isAnyTimeOffSelected = isGroupedTimeOff 
+                    ? timeOffEvents.some((e) => e.id === selectedEventId)
                     : false;
+                  
+                  const actualIsSelected = isGroupedTimeOff ? isAnyTimeOffSelected : isSelected;
+                  
+                  const isPartOfSelectedRecurringSeries =
+                    selectedEvent && !actualIsSelected && selectedEventId
+                      ? (isGroupedTimeOff
+                          ? timeOffEvents.some((e) => areEventsInSameRecurringSeries(e, selectedEvent))
+                          : areEventsInSameRecurringSeries(event, selectedEvent))
+                      : false;
 
-                return (
-                  <CalendarDayCellEvent
-                    key={event.id}
-                    event={event}
-                    isSelected={actualIsSelected}
-                    isPartOfSelectedRecurringSeries={isPartOfSelectedRecurringSeries}
-                    hasSelectedEvent={!!selectedEventId}
-                    onSelect={(e) => {
-                      // When clicking grouped time-off, select the first underlying event
-                      if (isGroupedTimeOff && timeOffEvents.length > 0 && onEventClick) {
-                        onEventClick(timeOffEvents[0]);
-                      } else if (onEventClick) {
-                        onEventClick(event);
-                      }
-                    }}
-                  />
-                );
-              })}
-              {showMoreEvents && (
-                <div className="flex h-[20px] items-center justify-center rounded-sm px-[4px] text-tag text-fg3 leading-none">
-                  {remainingCount} more {remainingCount === 1 ? "event" : "events"}
-                </div>
-              )}
-            </>
-          );
-        })()}
+                  return (
+                    <CalendarDayCellEvent
+                      key={event.id}
+                      event={event}
+                      isSelected={actualIsSelected}
+                      isPartOfSelectedRecurringSeries={isPartOfSelectedRecurringSeries}
+                      hasSelectedEvent={!!selectedEventId}
+                      onSelect={(e) => {
+                        // When clicking grouped time-off, select the first underlying event
+                        if (isGroupedTimeOff && timeOffEvents.length > 0 && onEventClick) {
+                          onEventClick(timeOffEvents[0]);
+                        } else if (onEventClick) {
+                          onEventClick(event);
+                        }
+                      }}
+                    />
+                  );
+                })}
+                {showMoreEvents && (
+                  <div className="flex h-[20px] items-center justify-center rounded-sm px-[4px] text-tag text-fg3 leading-none">
+                    {remainingCount} more {remainingCount === 1 ? "event" : "events"}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
 
         {hoverState && indicatorMetrics && showAnimation && (
           <div className="absolute inset-0 z-50 pointer-events-none">

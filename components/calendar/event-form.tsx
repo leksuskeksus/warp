@@ -4,8 +4,8 @@ import { useEffect, useLayoutEffect, useId, useRef, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { EVENT_TYPE_LABELS } from "@/lib/calendar";
-import { CalendarEventType } from "@/lib/events-store";
+import { EVENT_TYPE_LABELS, formatEventSchedule } from "@/lib/calendar";
+import { CalendarEventType, HydratedCalendarEvent } from "@/lib/events-store";
 import { CalendarPerson } from "@/lib/people-store";
 
 // Simple avatar component
@@ -64,6 +64,7 @@ type CalendarEventFormProps = {
   onValidationChange?: (isValid: boolean) => void;
   onSubmitRef?: (submitFn: () => void) => void;
   onChange?: (values: CalendarEventFormValues) => void;
+  conflicts?: HydratedCalendarEvent[];
   people?: CalendarPerson[];
 };
 
@@ -107,6 +108,7 @@ export function CalendarEventForm({
   onValidationChange,
   onSubmitRef,
   onChange,
+  conflicts = [],
   people = [],
 }: CalendarEventFormProps) {
   const typeSelectId = useId();
@@ -377,6 +379,37 @@ export function CalendarEventForm({
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex min-h-full flex-col">
+      {conflicts.length > 0 && (
+        <div className="mb-[16px] rounded-md border border-[var(--color-yellow-500)] bg-[var(--color-yellow-50)] px-[16px] py-[12px]">
+          <div className="flex flex-col gap-[8px]">
+            <div className="flex items-center gap-[8px]">
+              <span className="text-body-2 font-semibold text-[var(--color-yellow-900)]">
+                ⚠️ Schedule Conflict
+              </span>
+            </div>
+            <p className="text-body-2 text-[var(--color-yellow-800)]">
+              This event overlaps with {conflicts.length} existing {conflicts.length === 1 ? "event" : "events"}:
+            </p>
+            <ul className="ml-[16px] list-disc space-y-[4px]">
+              {conflicts.slice(0, 3).map((conflict) => (
+                <li key={conflict.id} className="text-body-2 text-[var(--color-yellow-800)]">
+                  <span className="font-medium">{conflict.title}</span>
+                  {" · "}
+                  <span className="text-fg3">{formatEventSchedule(conflict)}</span>
+                </li>
+              ))}
+              {conflicts.length > 3 && (
+                <li className="text-body-2 text-[var(--color-yellow-800)]">
+                  and {conflicts.length - 3} more {conflicts.length - 3 === 1 ? "event" : "events"}
+                </li>
+              )}
+            </ul>
+            <p className="text-caption text-[var(--color-yellow-700)]">
+              You can still save this event, but you may want to adjust the time to avoid conflicts.
+            </p>
+          </div>
+        </div>
+      )}
       <div className="flex-1 -mx-[20px] space-y-[20px] px-[20px] pb-[32px] pt-[8px]">
         {isCompanyEvent || isBirthday || isTimeOff || isDeadline || isWorkAnniversary ? (
           <>
