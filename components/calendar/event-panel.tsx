@@ -49,6 +49,30 @@ function CalendarEventPanelView({
   const scheduleLabel = useMemo(() => formatEventSchedule(event), [event]);
   const timezoneLabel = event.timeZone ?? localTimeZone;
 
+  // Check if this is a grouped time-off event
+  const groupedTimeOffEvents = (event as any).__timeOffEvents as HydratedCalendarEvent[] | undefined;
+  const isGroupedTimeOff = event.type === "time-off" && groupedTimeOffEvents && groupedTimeOffEvents.length > 1;
+
+  // Collect all unique people from grouped time-off events
+  const allTimeOffPeople = useMemo(() => {
+    if (!isGroupedTimeOff || !groupedTimeOffEvents) {
+      return null;
+    }
+    
+    const uniquePeople = new Map<string, { name: string; id?: string }>();
+    groupedTimeOffEvents.forEach((e) => {
+      const personId = e.owner.id || e.owner.name;
+      if (!uniquePeople.has(personId)) {
+        uniquePeople.set(personId, {
+          name: e.owner.name,
+          id: e.owner.id,
+        });
+      }
+    });
+    
+    return Array.from(uniquePeople.values());
+  }, [isGroupedTimeOff, groupedTimeOffEvents]);
+
   return (
     <div className="flex min-h-full flex-col gap-[20px]">
       <div className="flex flex-col gap-[6px]">
@@ -57,7 +81,11 @@ function CalendarEventPanelView({
             {typeLabel}
           </span>
         )}
-        <h2 className="text-h3 text-fg">{event.title}</h2>
+        <h2 className="text-h3 text-fg">
+          {isGroupedTimeOff && allTimeOffPeople
+            ? `${allTimeOffPeople.length} ${allTimeOffPeople.length === 1 ? "person" : "people"} off`
+            : event.title}
+        </h2>
       </div>
 
       <div className="flex flex-col gap-[16px] rounded-md border border-border bg-bg px-[16px] py-[16px] text-fg">
@@ -94,14 +122,24 @@ function CalendarEventPanelView({
       <div className="flex flex-col gap-[6px]">
         <span className="text-caption uppercase tracking-[0.08em] text-fg4">People</span>
         <div className="flex flex-col gap-[4px] text-body-2 text-fg">
-          <span>
-            {event.owner.name}
-            <span className="text-caption text-fg4"> · Organizer</span>
-          </span>
-          {event.attendees.length === 0 ? (
-            <span className="text-caption text-fg4">No additional attendees</span>
+          {isGroupedTimeOff && allTimeOffPeople ? (
+            // Show all people from grouped time-off events
+            allTimeOffPeople.map((person) => (
+              <span key={person.id || person.name}>{person.name}</span>
+            ))
           ) : (
-            event.attendees.map((person) => <span key={person.id}>{person.name}</span>)
+            // Show single event people
+            <>
+              <span>
+                {event.owner.name}
+                <span className="text-caption text-fg4"> · Organizer</span>
+              </span>
+              {event.attendees.length === 0 ? (
+                <span className="text-caption text-fg4">No additional attendees</span>
+              ) : (
+                event.attendees.map((person) => <span key={person.id}>{person.name}</span>)
+              )}
+            </>
           )}
         </div>
       </div>

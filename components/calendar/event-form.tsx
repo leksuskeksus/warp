@@ -420,7 +420,7 @@ export function CalendarEventForm({
             {isPersonEvent && (
               <div className="flex items-center gap-[12px]">
                 <label htmlFor={birthdayBoyId} className="text-body-2 text-fg">
-                  {isBirthday ? "Birthday boy" : isTimeOff ? "Person" : "Person"}
+                  {isBirthday ? "Person" : isTimeOff ? "Person" : "Person"}
                 </label>
                 <Select
                   id={birthdayBoyId}

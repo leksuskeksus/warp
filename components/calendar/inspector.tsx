@@ -180,14 +180,33 @@ export function CalendarInspector({
                 </span>
               </div>
               <div className="flex flex-col gap-[8px]">
-                {section.events.map((event) => (
-                  <CalendarInspectorEvent
-                    key={event.id}
-                    event={event}
-                    isSelected={selectedEventId === event.id}
-                    onSelect={onSelectEvent}
-                  />
-                ))}
+                {section.events.map((event) => {
+                  const isGroupedTimeOff = event.id.startsWith("grouped-time-off-");
+                  // For grouped time-off, check if any of the underlying events is selected
+                  const isAnyTimeOffSelected = isGroupedTimeOff 
+                    ? (event as any).__timeOffEvents?.some((e: HydratedCalendarEvent) => e.id === selectedEventId)
+                    : false;
+                  const actualIsSelected = isGroupedTimeOff ? isAnyTimeOffSelected : selectedEventId === event.id;
+                  
+                  return (
+                    <CalendarInspectorEvent
+                      key={event.id}
+                      event={event}
+                      isSelected={actualIsSelected}
+                      onSelect={(e) => {
+                        // When clicking grouped time-off, select the first underlying event with all grouped events attached
+                        if (isGroupedTimeOff && (e as any).__timeOffEvents?.length > 0) {
+                          const firstEvent = (e as any).__timeOffEvents[0];
+                          // Attach all grouped events to the selected event
+                          (firstEvent as any).__timeOffEvents = (e as any).__timeOffEvents;
+                          onSelectEvent(firstEvent);
+                        } else {
+                          onSelectEvent(e);
+                        }
+                      }}
+                    />
+                  );
+                })}
               </div>
             </div>
           ))}

@@ -129,11 +129,12 @@ export function CalendarDayCell({
     }
 
     // Not all events fit, calculate how many events + "more events" text can fit
-    // Height = N * EVENT_HEIGHT + (N - 1) * EVENT_GAP + MORE_EVENTS_TEXT_HEIGHT
-    // N * EVENT_HEIGHT + N * EVENT_GAP - EVENT_GAP + MORE_EVENTS_TEXT_HEIGHT <= containerHeight
-    // N * (EVENT_HEIGHT + EVENT_GAP) <= containerHeight + EVENT_GAP - MORE_EVENTS_TEXT_HEIGHT
-    // N <= (containerHeight + EVENT_GAP - MORE_EVENTS_TEXT_HEIGHT) / (EVENT_HEIGHT + EVENT_GAP)
-    const availableHeight = containerHeight + EVENT_GAP - MORE_EVENTS_TEXT_HEIGHT;
+    // Height = N * EVENT_HEIGHT + (N - 1) * EVENT_GAP + EVENT_GAP + MORE_EVENTS_TEXT_HEIGHT
+    // The extra EVENT_GAP is the gap before the "more events" text
+    // N * EVENT_HEIGHT + N * EVENT_GAP - EVENT_GAP + EVENT_GAP + MORE_EVENTS_TEXT_HEIGHT <= containerHeight
+    // N * (EVENT_HEIGHT + EVENT_GAP) + MORE_EVENTS_TEXT_HEIGHT <= containerHeight
+    // N <= (containerHeight - MORE_EVENTS_TEXT_HEIGHT) / (EVENT_HEIGHT + EVENT_GAP)
+    const availableHeight = containerHeight - MORE_EVENTS_TEXT_HEIGHT;
     const maxEventsWithMoreText = Math.floor(availableHeight / (EVENT_HEIGHT + EVENT_GAP));
     
     if (maxEventsWithMoreText > 0) {
@@ -146,18 +147,27 @@ export function CalendarDayCell({
 
   // Recalculate when container size or events change
   useEffect(() => {
-    calculateVisibleEvents();
+    // Use requestAnimationFrame to ensure layout is complete
+    const timeoutId = setTimeout(() => {
+      calculateVisibleEvents();
+    }, 0);
     
     const container = eventContainerRef.current;
-    if (!container) return;
+    if (!container) {
+      return () => clearTimeout(timeoutId);
+    }
 
     const resizeObserver = new ResizeObserver(() => {
-      calculateVisibleEvents();
+      // Use requestAnimationFrame to ensure accurate measurements
+      requestAnimationFrame(() => {
+        calculateVisibleEvents();
+      });
     });
 
     resizeObserver.observe(container);
 
     return () => {
+      clearTimeout(timeoutId);
       resizeObserver.disconnect();
     };
   }, [calculateVisibleEvents]);
@@ -536,7 +546,7 @@ export function CalendarDayCell({
       </div>
       <div
         ref={eventContainerRef}
-        className="relative flex flex-1 flex-col gap-[2px] overflow-visible"
+        className="relative flex flex-1 flex-col gap-[2px] overflow-hidden min-h-0"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         role="presentation"
@@ -591,7 +601,7 @@ export function CalendarDayCell({
                 );
               })}
               {showMoreEvents && (
-                <div className="flex h-[20px] items-center justify-center rounded-sm px-[4px] text-tag text-fg leading-none">
+                <div className="flex h-[20px] items-center justify-center rounded-sm px-[4px] text-tag text-fg3 leading-none">
                   {remainingCount} more {remainingCount === 1 ? "event" : "events"}
                 </div>
               )}

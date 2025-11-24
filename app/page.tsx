@@ -104,6 +104,41 @@ export default function Home() {
   const localTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
   const weekViewportMapRef = useRef<Map<number, { top: number; date: Date }>>(new Map());
 
+  // Auto-populate events if storage is empty
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    
+    // Check if events storage is empty
+    const eventsJson = window.localStorage.getItem("calendar-events");
+    let isEmpty = true;
+    
+    if (eventsJson) {
+      try {
+        const events = JSON.parse(eventsJson) as CalendarEvent[];
+        isEmpty = events.length === 0;
+      } catch {
+        // If parsing fails, treat as empty
+        isEmpty = true;
+      }
+    }
+    
+    if (isEmpty) {
+      const success = populateCurrentMonthEvents();
+      if (success) {
+        // Refresh events from storage
+        const updatedEventsJson = window.localStorage.getItem("calendar-events");
+        if (updatedEventsJson) {
+          try {
+            const events = JSON.parse(updatedEventsJson) as CalendarEvent[];
+            setPersistedEvents(events);
+          } catch (e) {
+            console.error("Failed to refresh events after auto-population:", e);
+          }
+        }
+      }
+    }
+  }, [setPersistedEvents]);
+
   // Expose populate function to browser console for easy access
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -924,10 +959,55 @@ export default function Home() {
     });
 
     return Array.from(groups.values())
-      .map((group) => ({
-        ...group,
-        events: [...group.events].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
-      }))
+      .map((group) => {
+        // Separate time-off events from other events
+        const timeOffEvents: HydratedCalendarEvent[] = [];
+        const otherEvents: HydratedCalendarEvent[] = [];
+        
+        group.events.forEach((event) => {
+          if (event.type === "time-off") {
+            timeOffEvents.push(event);
+          } else {
+            otherEvents.push(event);
+          }
+        });
+
+        // Count unique people for time-off (by owner ID or name)
+        const uniqueTimeOffPeople = new Set<string>();
+        timeOffEvents.forEach((event) => {
+          const personId = event.owner.id || event.owner.name;
+          uniqueTimeOffPeople.add(personId);
+        });
+
+        // Create grouped events list: grouped time-off first (if any), then other events
+        const renderedEvents: HydratedCalendarEvent[] = [];
+        
+        if (timeOffEvents.length > 0) {
+          // Create a synthetic grouped event for display
+          const firstTimeOffEvent = timeOffEvents[0];
+          const groupedTimeOffEvent: HydratedCalendarEvent = {
+            ...firstTimeOffEvent,
+            id: `grouped-time-off-${group.date.toISOString()}`,
+            title: `${uniqueTimeOffPeople.size} ${uniqueTimeOffPeople.size === 1 ? "person" : "people"} off`,
+            // Store underlying events in a custom property (we'll handle this in the component)
+          };
+          // Store underlying events as a custom property on the event object
+          (groupedTimeOffEvent as any).__timeOffEvents = timeOffEvents;
+          renderedEvents.push(groupedTimeOffEvent);
+        }
+        
+        renderedEvents.push(...otherEvents);
+
+        return {
+          ...group,
+          events: renderedEvents.sort((a, b) => {
+            // Keep grouped time-off first, then sort others by time
+            if (a.id.startsWith("grouped-time-off-")) return -1;
+            if (b.id.startsWith("grouped-time-off-")) return 1;
+            return a.startsAt.getTime() - b.startsAt.getTime();
+          }),
+        };
+      })
       .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [filteredEvents]);
 
@@ -1017,8 +1097,22 @@ export default function Home() {
     // Clear day selection when selecting an event
     setSelectedDays(new Set());
     
+    // If this is a time-off event, find all time-off events on the same day
+    let eventToSelect = calendarEvent;
+    if (calendarEvent.type === "time-off") {
+      const eventDate = format(startOfDay(calendarEvent.startsAt), "yyyy-MM-dd");
+      const sameDayTimeOffEvents = filteredEvents.filter(
+        (e) => e.type === "time-off" && format(startOfDay(e.startsAt), "yyyy-MM-dd") === eventDate
+      );
+      
+      // If there are multiple time-off events, store them for grouped display
+      if (sameDayTimeOffEvents.length > 1) {
+        (eventToSelect as any).__timeOffEvents = sameDayTimeOffEvents;
+      }
+    }
+    
     ensureWeekVisible(getWeekIndexForDate(calendarEvent.startsAt));
-    setSelectedEvent(calendarEvent);
+    setSelectedEvent(eventToSelect);
     setIsSidebarOpen(true);
   };
 
