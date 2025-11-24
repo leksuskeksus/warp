@@ -162,9 +162,13 @@ export function CalendarEventForm({
     peopleRef.current = people;
   }, [people]);
 
-  // Auto-update title and settings when birthday person changes
+  // Auto-update title and settings based on event type
   useEffect(() => {
-    if (values.type === "birthday") {
+    const isBirthday = values.type === "birthday";
+    const isTimeOff = values.type === "time-off";
+    const isWorkAnniversary = values.type === "work-anniversary";
+    
+    if (isBirthday) {
       const selectedPerson = values.personId ? peopleRef.current.find((p) => p.id === values.personId) : null;
       const personChanged = values.personId !== lastBirthdayPersonIdRef.current;
       
@@ -178,7 +182,7 @@ export function CalendarEventForm({
           isAllDay: true,
           recurrenceRule: "yearly",
         }));
-      } else if (values.type === "birthday" && (!values.isAllDay || values.recurrenceRule !== "yearly")) {
+      } else if (isBirthday && (!values.isAllDay || values.recurrenceRule !== "yearly")) {
         // Ensure settings are correct even if person hasn't changed
         setValues((prev) => ({
           ...prev,
@@ -186,11 +190,50 @@ export function CalendarEventForm({
           recurrenceRule: "yearly",
         }));
       }
-    } else {
+    } else if (isTimeOff || isWorkAnniversary) {
+      // Time-off and work-anniversary are always all-day
+      if (!values.isAllDay) {
+        setValues((prev) => ({ ...prev, isAllDay: true }));
+      }
+      
+      if (isWorkAnniversary) {
+        // Work-anniversary always repeats yearly
+        if (values.recurrenceRule !== "yearly") {
+          setValues((prev) => ({ ...prev, recurrenceRule: "yearly" }));
+        }
+        
+        // Auto-update title for work-anniversary when person changes
+        if (values.personId) {
+          const selectedPerson = peopleRef.current.find((p) => p.id === values.personId);
+          if (selectedPerson) {
+            const expectedTitle = `${selectedPerson.name}'s Work Anniversary`;
+            if (values.title !== expectedTitle) {
+              setValues((prev) => ({ ...prev, title: expectedTitle }));
+            }
+          }
+        }
+      } else if (isTimeOff) {
+        // Auto-update title for time-off when person changes
+        if (values.personId) {
+          const selectedPerson = peopleRef.current.find((p) => p.id === values.personId);
+          if (selectedPerson) {
+            const expectedTitle = `${selectedPerson.name} Time Off`;
+            if (values.title !== expectedTitle) {
+              setValues((prev) => ({ ...prev, title: expectedTitle }));
+            }
+          }
+        }
+      }
+      
       // Reset ref when not birthday type
+      if (isTimeOff || isWorkAnniversary) {
+        lastBirthdayPersonIdRef.current = null;
+      }
+    } else {
+      // Reset ref when not a person event type
       lastBirthdayPersonIdRef.current = null;
     }
-  }, [values.type, values.personId, values.isAllDay, values.recurrenceRule]);
+  }, [values.type, values.personId, values.isAllDay, values.recurrenceRule, values.title]);
 
   // Notify parent of value changes in real-time (using useLayoutEffect for immediate updates)
   useLayoutEffect(() => {
@@ -327,11 +370,15 @@ export function CalendarEventForm({
 
   const isCompanyEvent = values.type === "company-event";
   const isBirthday = values.type === "birthday";
+  const isTimeOff = values.type === "time-off";
+  const isDeadline = values.type === "deadline";
+  const isWorkAnniversary = values.type === "work-anniversary";
+  const isPersonEvent = isBirthday || isTimeOff || isWorkAnniversary;
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex min-h-full flex-col">
       <div className="flex-1 -mx-[20px] space-y-[20px] px-[20px] pb-[32px] pt-[8px]">
-        {isCompanyEvent || isBirthday ? (
+        {isCompanyEvent || isBirthday || isTimeOff || isDeadline || isWorkAnniversary ? (
           <>
             {/* Name */}
             <div className="flex items-center gap-[12px]">
@@ -369,11 +416,11 @@ export function CalendarEventForm({
               </Select>
             </div>
 
-            {/* Birthday boy selector - only for birthday type */}
-            {isBirthday && (
+            {/* Person selector - for birthday, time-off, and work-anniversary */}
+            {isPersonEvent && (
               <div className="flex items-center gap-[12px]">
                 <label htmlFor={birthdayBoyId} className="text-body-2 text-fg">
-                  Birthday boy
+                  {isBirthday ? "Birthday boy" : isTimeOff ? "Person" : "Person"}
                 </label>
                 <Select
                   id={birthdayBoyId}
@@ -392,8 +439,8 @@ export function CalendarEventForm({
               </div>
             )}
 
-            {/* All day checkbox - hidden for birthday, shown for company-event */}
-            {isCompanyEvent && (
+            {/* All day checkbox - shown for company-event and deadline */}
+            {(isCompanyEvent || isDeadline) && (
               <div className="flex items-center">
                 <label htmlFor={allDayId} className="flex items-center gap-[8px] cursor-pointer">
                   <input
@@ -409,8 +456,8 @@ export function CalendarEventForm({
               </div>
             )}
 
-            {/* Time Started and Date Started */}
-            {!isBirthday && (
+            {/* Time Started and Date Started - for company-event and deadline */}
+            {(isCompanyEvent || isDeadline) && (
               <div className="flex items-center gap-[12px]">
                 {!values.isAllDay && (
                   <Input
@@ -419,7 +466,7 @@ export function CalendarEventForm({
                     value={values.startTime}
                     onChange={handleChange("startTime")}
                     disabled={isSaving}
-                    className="w-[140px]"
+                    className="w-[100px]"
                     placeholder="Time Started"
                   />
                 )}
@@ -429,13 +476,13 @@ export function CalendarEventForm({
                   value={values.startDate}
                   onChange={handleChange("startDate")}
                   disabled={isSaving}
-                  className={values.isAllDay ? "flex-1 max-w-[420px]" : "flex-1 max-w-[280px]"}
+                  className={values.isAllDay ? "flex-1 max-w-[420px]" : "flex-1 max-w-[320px]"}
                 />
               </div>
             )}
 
-            {/* Date Started - for birthday (no time) */}
-            {isBirthday && (
+            {/* Date Started - for birthday, time-off, and work-anniversary (all-day only) */}
+            {isPersonEvent && (
               <div className="flex items-center gap-[12px]">
                 <label htmlFor={startDateId} className="text-body-2 text-fg">
                   Date
@@ -451,17 +498,17 @@ export function CalendarEventForm({
               </div>
             )}
 
-            {/* Time Ended and Date Ended - hidden for birthday */}
-            {!isBirthday && (
+            {/* Time Ended and Date Ended - for company-event and time-off */}
+            {(isCompanyEvent || isTimeOff) && (
               <div className="flex items-center gap-[12px]">
-                {!values.isAllDay && (
+                {isCompanyEvent && !values.isAllDay && (
                   <Input
                     id={endTimeId}
                     type="time"
                     value={values.endTime}
                     onChange={handleChange("endTime")}
                     disabled={isSaving}
-                    className="w-[140px]"
+                    className="w-[100px]"
                     placeholder="Time Ended"
                   />
                 )}
@@ -471,13 +518,13 @@ export function CalendarEventForm({
                   value={values.endDate}
                   onChange={handleChange("endDate")}
                   disabled={isSaving}
-                  className={values.isAllDay ? "flex-1 max-w-[420px]" : "flex-1 max-w-[280px]"}
+                  className={isCompanyEvent && !values.isAllDay ? "flex-1 max-w-[320px]" : "flex-1 max-w-[420px]"}
                 />
               </div>
             )}
 
-            {/* Repeat - hidden for birthday, shown for company-event */}
-            {isCompanyEvent && (
+            {/* Repeat - shown for company-event, deadline, and work-anniversary */}
+            {(isCompanyEvent || isDeadline || isWorkAnniversary) && (
               <div className="flex items-center gap-[12px]">
                 <label htmlFor={repeatId} className="text-body-2 text-fg">
                   Repeat
@@ -486,7 +533,7 @@ export function CalendarEventForm({
                   id={repeatId}
                   value={values.recurrenceRule || ""}
                   onChange={handleChange("recurrenceRule")}
-                  disabled={isSaving}
+                  disabled={isSaving || isWorkAnniversary}
                   className="flex-1 max-w-[420px]"
                 >
                   {REPEAT_OPTIONS.map((option) => (

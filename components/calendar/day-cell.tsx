@@ -116,21 +116,25 @@ export function CalendarDayCell({
       return;
     }
 
+    const totalEvents = groupedEventsData.groupedEventsCount;
+    
     // First check if all grouped events fit without "more events" text
-    // Height for all events: groupedEventsCount * 20 + (groupedEventsCount - 1) * 2
-    const heightForAllEvents = groupedEventsData.groupedEventsCount * EVENT_HEIGHT + (groupedEventsData.groupedEventsCount - 1) * EVENT_GAP;
+    // Height for all events: totalEvents * EVENT_HEIGHT + (totalEvents - 1) * EVENT_GAP
+    const heightForAllEvents = totalEvents * EVENT_HEIGHT + (totalEvents - 1) * EVENT_GAP;
     
     if (heightForAllEvents <= containerHeight) {
       // All events fit
-      setVisibleEventCount(groupedEventsData.groupedEventsCount);
+      setVisibleEventCount(totalEvents);
       return;
     }
 
     // Not all events fit, calculate how many events + "more events" text can fit
-    // Height = N * 20 + N * 2 + 20 = 22N + 20
-    // So: 22N + 20 <= containerHeight
-    // N <= (containerHeight - 20) / 22
-    const maxEventsWithMoreText = Math.floor((containerHeight - MORE_EVENTS_TEXT_HEIGHT) / (EVENT_HEIGHT + EVENT_GAP));
+    // Height = N * EVENT_HEIGHT + (N - 1) * EVENT_GAP + MORE_EVENTS_TEXT_HEIGHT
+    // N * EVENT_HEIGHT + N * EVENT_GAP - EVENT_GAP + MORE_EVENTS_TEXT_HEIGHT <= containerHeight
+    // N * (EVENT_HEIGHT + EVENT_GAP) <= containerHeight + EVENT_GAP - MORE_EVENTS_TEXT_HEIGHT
+    // N <= (containerHeight + EVENT_GAP - MORE_EVENTS_TEXT_HEIGHT) / (EVENT_HEIGHT + EVENT_GAP)
+    const availableHeight = containerHeight + EVENT_GAP - MORE_EVENTS_TEXT_HEIGHT;
+    const maxEventsWithMoreText = Math.floor(availableHeight / (EVENT_HEIGHT + EVENT_GAP));
     
     if (maxEventsWithMoreText > 0) {
       setVisibleEventCount(maxEventsWithMoreText);
