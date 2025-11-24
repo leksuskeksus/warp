@@ -30,6 +30,7 @@ type CalendarInspectorProps = {
   draftEvent?: CalendarEventFormValues | null;
   onSubmitDraft?: (values: CalendarEventFormValues) => void;
   onCancelDraft?: () => void;
+  onDraftChange?: (values: CalendarEventFormValues) => void;
   draftErrors?: string[];
   isDraftSaving?: boolean;
   draftFormKey?: string | null;
@@ -49,6 +50,7 @@ export function CalendarInspector({
   draftEvent = null,
   onSubmitDraft,
   onCancelDraft,
+  onDraftChange,
   draftErrors = [],
   isDraftSaving = false,
   draftFormKey = null,
@@ -146,6 +148,7 @@ export function CalendarInspector({
           initialValues={draftEvent}
           onSubmit={onSubmitDraft}
           onCancel={onCancelDraft}
+          onChange={onDraftChange}
           isSaving={isDraftSaving}
           onValidationChange={setFormIsValid}
           onSubmitRef={(submitFn) => {
@@ -168,7 +171,7 @@ export function CalendarInspector({
         <div className="flex flex-col gap-[20px]">
           {sections.map((section) => (
             <div key={section.date.toISOString()} className="flex flex-col gap-[10px]">
-              <div className="flex items-baseline justify-between">
+              <div className="sticky top-[51px] z-10 -mx-[20px] flex items-baseline justify-between bg-white px-[20px] py-[8px]">
                 <span className="text-caption font-semibold uppercase tracking-[0.12em] text-fg2">
                   {format(section.date, "EEE, MMM d")}
                 </span>

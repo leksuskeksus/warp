@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
 } from "react";
+import { format } from "date-fns";
 
 import { cn } from "@/lib/cn";
 import { HydratedCalendarEvent } from "@/lib/events-store";
@@ -33,7 +34,7 @@ type CalendarViewProps = {
   totalWeeks: number;
   selectedEventId?: string | null;
   selectedEvent?: HydratedCalendarEvent | null;
-  onDaySelect: (date: Date, additive: boolean) => void;
+  onDaySelect: (date: Date, additive: boolean, isRange: boolean) => void;
   onEventSelect: (event: HydratedCalendarEvent) => void;
   onEventCreate: (payload: CalendarDayCellCreateEventPayload) => void;
   onRequestRangeChange: (direction: "up" | "down") => void;
@@ -172,7 +173,11 @@ export function CalendarView({
   }, [onWeekInView, scrollContainerRef, weekRange.start, weekRange.end]);
 
   const handleDayClick = (date: Date) => (event: MouseEvent<HTMLButtonElement>) => {
-    onDaySelect(date, event.shiftKey);
+    // Cmd/Ctrl+click for additive selection (add/remove from selection)
+    // Shift+click for range selection (select all days between)
+    const isAdditive = event.metaKey || event.ctrlKey;
+    const isRange = event.shiftKey;
+    onDaySelect(date, isAdditive, isRange);
   };
 
   const placeholderClassName = useMemo(
@@ -219,6 +224,7 @@ export function CalendarView({
           <button
             key={day.dayIndex}
             type="button"
+            data-date={format(day.date, "yyyy-MM-dd")}
             ref={(node) => {
               if (shouldAttachTop) {
                 setTopSentinel(node);

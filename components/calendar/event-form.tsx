@@ -1,12 +1,41 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useId, useRef, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EVENT_TYPE_LABELS } from "@/lib/calendar";
 import { CalendarEventType } from "@/lib/events-store";
 import { CalendarPerson } from "@/lib/people-store";
+
+// Simple avatar component
+function Avatar({ name, size = 32 }: { name: string; size?: number }) {
+  const initials = name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+  
+  // Generate a consistent color based on name
+  const hash = name.split("").reduce((acc, char) => {
+    return char.charCodeAt(0) + ((acc << 5) - acc);
+  }, 0);
+  const hue = Math.abs(hash) % 360;
+  
+  return (
+    <div
+      className="flex items-center justify-center rounded-full text-body-2 font-medium text-white"
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        backgroundColor: `hsl(${hue}, 65%, 50%)`,
+      }}
+    >
+      {initials}
+    </div>
+  );
+}
 
 export type CalendarEventFormValues = {
   // Placeholder type - minimal structure to prevent type errors
@@ -34,6 +63,7 @@ type CalendarEventFormProps = {
   isSaving?: boolean;
   onValidationChange?: (isValid: boolean) => void;
   onSubmitRef?: (submitFn: () => void) => void;
+  onChange?: (values: CalendarEventFormValues) => void;
   people?: CalendarPerson[];
 };
 
@@ -46,12 +76,29 @@ const EVENT_TYPE_OPTIONS: CalendarEventType[] = [
 ];
 
 const REPEAT_OPTIONS = [
-  { value: "", label: "Never" },
+  { value: "", label: "Does not repeat" },
   { value: "daily", label: "Daily" },
   { value: "weekly", label: "Weekly" },
   { value: "monthly", label: "Monthly" },
   { value: "yearly", label: "Yearly" },
 ];
+
+function getEventNamePlaceholder(type: CalendarEventType): string {
+  switch (type) {
+    case "company-event":
+      return "Event name";
+    case "deadline":
+      return "Deadline name";
+    case "time-off":
+      return "Time off reason";
+    case "birthday":
+      return "Person's name";
+    case "work-anniversary":
+      return "Person's name";
+    default:
+      return "Event name";
+  }
+}
 
 export function CalendarEventForm({
   initialValues,
@@ -59,9 +106,13 @@ export function CalendarEventForm({
   isSaving = false,
   onValidationChange,
   onSubmitRef,
+  onChange,
   people = [],
 }: CalendarEventFormProps) {
   const typeSelectId = useId();
+  const nameInputId = useId();
+  const birthdayBoyId = useId();
+  const allDayId = useId();
   const startDateId = useId();
   const startTimeId = useId();
   const endDateId = useId();
@@ -72,10 +123,21 @@ export function CalendarEventForm({
   const [values, setValues] = useState<CalendarEventFormValues>(initialValues);
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<Set<string>>(new Set());
   const formRef = useRef<HTMLFormElement>(null);
+  const isInitialMount = useRef(true);
+  const onChangeRef = useRef(onChange);
+  const prevValuesRef = useRef<CalendarEventFormValues>(initialValues);
+  const lastBirthdayPersonIdRef = useRef<string | null>(null);
+
+  // Keep onChange ref up to date
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   // Sync with initialValues changes
   useEffect(() => {
     setValues(initialValues);
+    prevValuesRef.current = initialValues;
+    isInitialMount.current = true;
     // Parse existing attendees from attendeesInput
     if (initialValues.attendeesInput) {
       const lines = initialValues.attendeesInput.split(/\r?\n/).filter(Boolean);
@@ -93,6 +155,70 @@ export function CalendarEventForm({
       setSelectedParticipantIds(ids);
     }
   }, [initialValues, people]);
+
+  // Store people in a ref to avoid dependency array issues
+  const peopleRef = useRef(people);
+  useEffect(() => {
+    peopleRef.current = people;
+  }, [people]);
+
+  // Auto-update title and settings when birthday person changes
+  useEffect(() => {
+    if (values.type === "birthday") {
+      const selectedPerson = values.personId ? peopleRef.current.find((p) => p.id === values.personId) : null;
+      const personChanged = values.personId !== lastBirthdayPersonIdRef.current;
+      
+      // Update title if person changed or if title doesn't match expected
+      if (selectedPerson && personChanged) {
+        const expectedTitle = `${selectedPerson.name}'s Birthday`;
+        lastBirthdayPersonIdRef.current = values.personId || null;
+        setValues((prev) => ({
+          ...prev,
+          title: expectedTitle,
+          isAllDay: true,
+          recurrenceRule: "yearly",
+        }));
+      } else if (values.type === "birthday" && (!values.isAllDay || values.recurrenceRule !== "yearly")) {
+        // Ensure settings are correct even if person hasn't changed
+        setValues((prev) => ({
+          ...prev,
+          isAllDay: true,
+          recurrenceRule: "yearly",
+        }));
+      }
+    } else {
+      // Reset ref when not birthday type
+      lastBirthdayPersonIdRef.current = null;
+    }
+  }, [values.type, values.personId, values.isAllDay, values.recurrenceRule]);
+
+  // Notify parent of value changes in real-time (using useLayoutEffect for immediate updates)
+  useLayoutEffect(() => {
+    // Skip initial mount to avoid calling onChange on first render
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      prevValuesRef.current = values;
+      return;
+    }
+
+    // Quick shallow comparison
+    const hasChanged = 
+      prevValuesRef.current.title !== values.title ||
+      prevValuesRef.current.type !== values.type ||
+      prevValuesRef.current.isAllDay !== values.isAllDay ||
+      prevValuesRef.current.startDate !== values.startDate ||
+      prevValuesRef.current.startTime !== values.startTime ||
+      prevValuesRef.current.endDate !== values.endDate ||
+      prevValuesRef.current.endTime !== values.endTime ||
+      prevValuesRef.current.recurrenceRule !== values.recurrenceRule ||
+      prevValuesRef.current.attendeesInput !== values.attendeesInput;
+
+    if (hasChanged && onChangeRef.current) {
+      prevValuesRef.current = values;
+      // Call immediately in useLayoutEffect - runs synchronously after DOM updates but before paint
+      onChangeRef.current(values);
+    }
+  }, [values]);
 
   // Basic validation - can be expanded later
   const isValid = true; // Placeholder - will be implemented with actual validation
@@ -144,10 +270,34 @@ export function CalendarEventForm({
     }));
   };
 
+  const handleCheckboxChange = (field: keyof CalendarEventFormValues) => (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setValues((prev) => ({
+      ...prev,
+      [field]: e.target.checked,
+    }));
+  };
+
   const handleParticipantAdd = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const personId = e.target.value;
     if (personId && !selectedParticipantIds.has(personId)) {
-      setSelectedParticipantIds((prev) => new Set([...prev, personId]));
+      setSelectedParticipantIds((prev) => {
+        const next = new Set([...prev, personId]);
+        // Update attendeesInput
+        setValues((currentValues) => {
+          const attendeesLines = Array.from(next).map((id) => {
+            const person = people.find((p) => p.id === id);
+            if (!person) return "";
+            return person.email ? `${person.name} <${person.email}>` : person.name;
+          });
+          return {
+            ...currentValues,
+            attendeesInput: attendeesLines.join("\n"),
+          };
+        });
+        return next;
+      });
       e.target.value = ""; // Reset select
     }
   };
@@ -156,6 +306,18 @@ export function CalendarEventForm({
     setSelectedParticipantIds((prev) => {
       const next = new Set(prev);
       next.delete(personId);
+      // Update attendeesInput
+      setValues((currentValues) => {
+        const attendeesLines = Array.from(next).map((id) => {
+          const person = people.find((p) => p.id === id);
+          if (!person) return "";
+          return person.email ? `${person.name} <${person.email}>` : person.name;
+        });
+        return {
+          ...currentValues,
+          attendeesInput: attendeesLines.join("\n"),
+        };
+      });
       return next;
     });
   };
@@ -163,17 +325,33 @@ export function CalendarEventForm({
   const availablePeople = people.filter((p) => !selectedParticipantIds.has(p.id));
   const selectedParticipants = people.filter((p) => selectedParticipantIds.has(p.id));
 
-  // For now, only show full form for company-event
   const isCompanyEvent = values.type === "company-event";
+  const isBirthday = values.type === "birthday";
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex min-h-full flex-col">
       <div className="flex-1 -mx-[20px] space-y-[20px] px-[20px] pb-[32px] pt-[8px]">
-        {isCompanyEvent ? (
+        {isCompanyEvent || isBirthday ? (
           <>
+            {/* Name */}
+            <div className="flex items-center gap-[12px]">
+              <label htmlFor={nameInputId} className="text-body-2 text-fg">
+                Name
+              </label>
+              <Input
+                id={nameInputId}
+                type="text"
+                value={values.title}
+                onChange={handleChange("title")}
+                disabled={isSaving}
+                placeholder={getEventNamePlaceholder(values.type)}
+                className="flex-1 max-w-[420px]"
+              />
+            </div>
+
             {/* Type */}
-            <div className="flex items-center">
-              <label htmlFor={typeSelectId} className="w-[100px] shrink-0 text-body-2 text-fg">
+            <div className="flex items-center gap-[12px]">
+              <label htmlFor={typeSelectId} className="text-body-2 text-fg">
                 Type
               </label>
               <Select
@@ -191,126 +369,183 @@ export function CalendarEventForm({
               </Select>
             </div>
 
-            {/* Starts */}
-            <div className="flex items-center">
-              <label htmlFor={startDateId} className="w-[100px] shrink-0 text-body-2 text-fg">
-                Starts
-              </label>
-              <div className="flex flex-1 items-center gap-[8px] max-w-[420px]">
+            {/* Birthday boy selector - only for birthday type */}
+            {isBirthday && (
+              <div className="flex items-center gap-[12px]">
+                <label htmlFor={birthdayBoyId} className="text-body-2 text-fg">
+                  Birthday boy
+                </label>
+                <Select
+                  id={birthdayBoyId}
+                  value={values.personId || ""}
+                  onChange={handleChange("personId")}
+                  disabled={isSaving}
+                  className="flex-1 max-w-[420px]"
+                >
+                  <option value="">Select person...</option>
+                  {people.map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {person.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+
+            {/* All day checkbox - hidden for birthday, shown for company-event */}
+            {isCompanyEvent && (
+              <div className="flex items-center">
+                <label htmlFor={allDayId} className="flex items-center gap-[8px] cursor-pointer">
+                  <input
+                    id={allDayId}
+                    type="checkbox"
+                    checked={values.isAllDay}
+                    onChange={handleCheckboxChange("isAllDay")}
+                    disabled={isSaving}
+                    className="w-[16px] h-[16px] cursor-pointer"
+                  />
+                  <span className="text-body-2 text-fg">All day</span>
+                </label>
+              </div>
+            )}
+
+            {/* Time Started and Date Started */}
+            {!isBirthday && (
+              <div className="flex items-center gap-[12px]">
+                {!values.isAllDay && (
+                  <Input
+                    id={startTimeId}
+                    type="time"
+                    value={values.startTime}
+                    onChange={handleChange("startTime")}
+                    disabled={isSaving}
+                    className="w-[140px]"
+                    placeholder="Time Started"
+                  />
+                )}
                 <Input
                   id={startDateId}
-                  type="text"
+                  type="date"
                   value={values.startDate}
                   onChange={handleChange("startDate")}
                   disabled={isSaving}
-                  placeholder="YYYY-MM-DD"
-                  className="flex-1"
-                />
-                <Input
-                  id={startTimeId}
-                  type="text"
-                  value={values.startTime}
-                  onChange={handleChange("startTime")}
-                  disabled={isSaving}
-                  placeholder="HH:MM"
-                  className="w-[120px]"
+                  className={values.isAllDay ? "flex-1 max-w-[420px]" : "flex-1 max-w-[280px]"}
                 />
               </div>
-            </div>
+            )}
 
-            {/* Ends */}
-            <div className="flex items-center">
-              <label htmlFor={endDateId} className="w-[100px] shrink-0 text-body-2 text-fg">
-                Ends
-              </label>
-              <div className="flex flex-1 items-center gap-[8px] max-w-[420px]">
+            {/* Date Started - for birthday (no time) */}
+            {isBirthday && (
+              <div className="flex items-center gap-[12px]">
+                <label htmlFor={startDateId} className="text-body-2 text-fg">
+                  Date
+                </label>
+                <Input
+                  id={startDateId}
+                  type="date"
+                  value={values.startDate}
+                  onChange={handleChange("startDate")}
+                  disabled={isSaving}
+                  className="flex-1 max-w-[420px]"
+                />
+              </div>
+            )}
+
+            {/* Time Ended and Date Ended - hidden for birthday */}
+            {!isBirthday && (
+              <div className="flex items-center gap-[12px]">
+                {!values.isAllDay && (
+                  <Input
+                    id={endTimeId}
+                    type="time"
+                    value={values.endTime}
+                    onChange={handleChange("endTime")}
+                    disabled={isSaving}
+                    className="w-[140px]"
+                    placeholder="Time Ended"
+                  />
+                )}
                 <Input
                   id={endDateId}
-                  type="text"
+                  type="date"
                   value={values.endDate}
                   onChange={handleChange("endDate")}
                   disabled={isSaving}
-                  placeholder="YYYY-MM-DD"
-                  className="flex-1"
+                  className={values.isAllDay ? "flex-1 max-w-[420px]" : "flex-1 max-w-[280px]"}
                 />
-                <Input
-                  id={endTimeId}
-                  type="text"
-                  value={values.endTime}
-                  onChange={handleChange("endTime")}
+              </div>
+            )}
+
+            {/* Repeat - hidden for birthday, shown for company-event */}
+            {isCompanyEvent && (
+              <div className="flex items-center gap-[12px]">
+                <label htmlFor={repeatId} className="text-body-2 text-fg">
+                  Repeat
+                </label>
+                <Select
+                  id={repeatId}
+                  value={values.recurrenceRule || ""}
+                  onChange={handleChange("recurrenceRule")}
                   disabled={isSaving}
-                  placeholder="HH:MM"
-                  className="w-[120px]"
-                />
+                  className="flex-1 max-w-[420px]"
+                >
+                  {REPEAT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
               </div>
-            </div>
+            )}
 
-            {/* Repeat */}
-            <div className="flex items-center">
-              <label htmlFor={repeatId} className="w-[100px] shrink-0 text-body-2 text-fg">
-                Repeat
-              </label>
-              <Select
-                id={repeatId}
-                value={values.recurrenceRule || ""}
-                onChange={handleChange("recurrenceRule")}
-                disabled={isSaving}
-                className="flex-1 max-w-[420px]"
-              >
-                {REPEAT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            {/* Participants */}
-            <div className="flex items-start">
-              <label htmlFor={participantsSelectId} className="w-[100px] shrink-0 pt-[10px] text-body-2 text-fg">
-                Participants
-              </label>
-              <div className="flex flex-1 flex-col gap-[8px] max-w-[420px]">
-                {/* Creator/Organizer */}
-                <div className="flex items-center gap-[8px] text-body-2 text-fg">
-                  <span>{values.ownerName || "You"}</span>
-                  <span className="text-caption text-fg4">· Organizer</span>
-                </div>
-                
-                {/* Selected participants */}
-                {selectedParticipants.map((person) => (
-                  <div key={person.id} className="flex items-center gap-[8px]">
-                    <span className="text-body-2 text-fg">{person.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleParticipantRemove(person.id)}
-                      disabled={isSaving}
-                      className="text-caption text-fg4 hover:text-fg2"
-                    >
-                      Remove
-                    </button>
+            {/* Participants - only for company-event */}
+            {isCompanyEvent && (
+              <div className="flex flex-col gap-[12px]">
+                <label className="text-body-2 text-fg">Participants</label>
+                <div className="flex flex-col gap-[8px]">
+                  {/* Creator/Organizer */}
+                  <div className="flex items-center gap-[8px]">
+                    <Avatar name={values.ownerName || "You"} size={32} />
+                    <span className="text-body-2 text-fg">{values.ownerName || "You"}</span>
+                    <span className="text-caption text-fg4">(Organizer)</span>
                   </div>
-                ))}
+                  
+                  {/* Selected participants */}
+                  {selectedParticipants.map((person) => (
+                    <div key={person.id} className="flex items-center gap-[8px]">
+                      <Avatar name={person.name} size={32} />
+                      <span className="text-body-2 text-fg">{person.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleParticipantRemove(person.id)}
+                        disabled={isSaving}
+                        className="ml-auto text-caption text-fg4 hover:text-fg2"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
 
-                {/* Add participant dropdown */}
-                {availablePeople.length > 0 && (
-                  <Select
-                    id={participantsSelectId}
-                    value=""
-                    onChange={handleParticipantAdd}
-                    disabled={isSaving}
-                    className="flex-1"
-                  >
-                    <option value="">Add participant...</option>
-                    {availablePeople.map((person) => (
-                      <option key={person.id} value={person.id}>
-                        {person.name}
-                      </option>
-                    ))}
-                  </Select>
-                )}
+                  {/* Add participant dropdown */}
+                  {availablePeople.length > 0 && (
+                    <Select
+                      id={participantsSelectId}
+                      value=""
+                      onChange={handleParticipantAdd}
+                      disabled={isSaving}
+                      className="w-full max-w-[420px]"
+                    >
+                      <option value="">Add Participant</option>
+                      {availablePeople.map((person) => (
+                        <option key={person.id} value={person.id}>
+                          {person.name}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </>
         ) : (
           /* Fallback for other event types - keep existing layout */

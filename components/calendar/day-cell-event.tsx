@@ -1,6 +1,6 @@
 "use client";
 
-import { CSSProperties, KeyboardEvent, MouseEvent, useEffect, useState } from "react";
+import { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import { format } from "date-fns";
 
 import { cn } from "@/lib/cn";
@@ -22,12 +22,6 @@ export function CalendarDayCellEvent({
   hasSelectedEvent = false,
   onSelect,
 }: CalendarDayCellEventProps) {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
   const handleClick = (interactionEvent: MouseEvent<HTMLDivElement>) => {
     interactionEvent.stopPropagation();
     if (!isDraft && onSelect) {
@@ -63,9 +57,7 @@ export function CalendarDayCellEvent({
   const shouldShowTime = event.isAllDay || event.title.length <= 18;
   const timeDisplay = event.isAllDay 
     ? "All day"
-    : isMounted
-      ? format(event.startsAt, "h:mm a")
-      : "";
+    : format(event.startsAt, "h:mm a");
 
   return (
     <div

@@ -1,4 +1,4 @@
-import { addDays, format, isSameDay, startOfDay, startOfMonth } from "date-fns";
+import { addDays, addWeeks, addMonths, addYears, format, isSameDay, startOfDay, startOfMonth } from "date-fns";
 
 import { CalendarEventType, HydratedCalendarEvent } from "./events-store";
 
@@ -97,12 +97,22 @@ export function formatEventSchedule(event: HydratedCalendarEvent): string {
 }
 
 /**
+ * Gets the base event ID from a recurrence instance ID.
+ * For example: "event-123-recurrence-5" -> "event-123"
+ */
+function getBaseEventId(eventId: string): string {
+  const recurrenceMatch = eventId.match(/^(.+)-recurrence-\d+$/);
+  return recurrenceMatch ? recurrenceMatch[1] : eventId;
+}
+
+/**
  * Checks if two events are part of the same recurring series.
  * Events are considered part of the same recurring series if they:
  * - Have the same recurrenceRule (non-empty)
  * - Have the same title
  * - Have the same type
  * - Have the same owner ID
+ * - OR have base event IDs that match (for recurrence instances)
  */
 export function areEventsInSameRecurringSeries(
   event1: HydratedCalendarEvent,
@@ -111,6 +121,14 @@ export function areEventsInSameRecurringSeries(
   // If either event doesn't have a recurrence rule, they're not part of a recurring series
   if (!event1.recurrenceRule || !event2.recurrenceRule) {
     return false;
+  }
+
+  // Check if they have the same base event ID (for recurrence instances)
+  const baseId1 = getBaseEventId(event1.id);
+  const baseId2 = getBaseEventId(event2.id);
+  if (baseId1 === baseId2) {
+    // Both are instances (or the original) of the same recurring event
+    return true;
   }
 
   // Check if they have the same recurrence rule, title, type, and owner
@@ -141,6 +159,112 @@ type BuildCalendarDaysOptions = {
   events: HydratedCalendarEvent[];
 };
 
+/**
+ * Expands recurring events into multiple instances based on their recurrence rule.
+ * Generates instances for events with recurrence rules within the specified date range.
+ */
+export function expandRecurringEvents(
+  events: HydratedCalendarEvent[],
+  rangeStart: Date,
+  rangeEnd: Date,
+): HydratedCalendarEvent[] {
+  const expanded: HydratedCalendarEvent[] = [];
+
+  for (const event of events) {
+    // Add the original event if it's not recurring
+    if (!event.recurrenceRule) {
+      expanded.push(event);
+      continue;
+    }
+
+    // Generate recurring instances
+    const originalStart = event.startsAt;
+    const originalEnd = event.endsAt ?? event.startsAt;
+    const duration = originalEnd.getTime() - originalStart.getTime();
+
+    // Find the first occurrence that falls within or after the range start
+    let currentDate = new Date(originalStart);
+    let occurrenceIndex = 0;
+
+    // If the original event starts before the range, fast-forward to the first occurrence in range
+    if (currentDate < rangeStart) {
+      switch (event.recurrenceRule) {
+        case "daily": {
+          const daysDiff = Math.ceil((rangeStart.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+          currentDate = addDays(currentDate, daysDiff);
+          occurrenceIndex = daysDiff;
+          break;
+        }
+        case "weekly": {
+          const weeksDiff = Math.ceil((rangeStart.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+          currentDate = addWeeks(originalStart, weeksDiff);
+          occurrenceIndex = weeksDiff;
+          break;
+        }
+        case "monthly": {
+          // For monthly, we need to iterate to find the right month
+          while (currentDate < rangeStart && occurrenceIndex < 120) {
+            currentDate = addMonths(originalStart, occurrenceIndex);
+            if (currentDate >= rangeStart) break;
+            occurrenceIndex++;
+          }
+          break;
+        }
+        case "yearly": {
+          // For yearly, we need to iterate to find the right year
+          while (currentDate < rangeStart && occurrenceIndex < 10) {
+            currentDate = addYears(originalStart, occurrenceIndex);
+            if (currentDate >= rangeStart) break;
+            occurrenceIndex++;
+          }
+          break;
+        }
+      }
+    }
+
+    // Generate instances until we exceed the range end
+    while (currentDate <= rangeEnd) {
+      const instanceStart = new Date(currentDate);
+      const instanceEnd = new Date(instanceStart.getTime() + duration);
+
+      expanded.push({
+        ...event,
+        id: `${event.id}-recurrence-${occurrenceIndex}`,
+        startsAt: instanceStart,
+        endsAt: instanceEnd,
+      });
+
+      // Calculate next occurrence based on recurrence rule
+      occurrenceIndex++;
+      switch (event.recurrenceRule) {
+        case "daily":
+          currentDate = addDays(currentDate, 1);
+          break;
+        case "weekly":
+          currentDate = addWeeks(originalStart, occurrenceIndex);
+          break;
+        case "monthly":
+          currentDate = addMonths(originalStart, occurrenceIndex);
+          break;
+        case "yearly":
+          currentDate = addYears(originalStart, occurrenceIndex);
+          break;
+        default:
+          // Unknown recurrence rule, stop generating
+          currentDate = new Date(rangeEnd.getTime() + 1);
+          break;
+      }
+
+      // Safety limit: don't generate more than 1000 instances
+      if (occurrenceIndex > 1000) {
+        break;
+      }
+    }
+  }
+
+  return expanded;
+}
+
 export function buildCalendarDays({
   baseDate,
   today,
@@ -149,6 +273,13 @@ export function buildCalendarDays({
   events,
 }: BuildCalendarDaysOptions): CalendarDay[] {
   const totalDays = weekCount * 7;
+  
+  // Calculate the date range for expanding recurring events
+  const rangeStart = addDays(baseDate, startWeek * 7);
+  const rangeEnd = addDays(rangeStart, totalDays);
+  
+  // Expand recurring events before building calendar days
+  const expandedEvents = expandRecurringEvents(events, rangeStart, rangeEnd);
 
   return Array.from({ length: totalDays }, (_, index) => {
     const absoluteDayIndex = startWeek * 7 + index;
@@ -161,7 +292,7 @@ export function buildCalendarDays({
       weekIndex: startWeek + Math.floor(index / 7),
       isToday: isSameDay(dayDate, today),
       isMonthStart: isSameDay(dayDate, startOfMonth(dayDate)),
-      events: events.filter((event) => {
+      events: expandedEvents.filter((event) => {
         const eventStartDay = startOfDay(event.startsAt).getTime();
         const eventEndDay = startOfDay(event.endsAt ?? event.startsAt).getTime();
         return eventStartDay <= dayStart && eventEndDay >= dayStart;

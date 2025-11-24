@@ -7,6 +7,7 @@ import {
   addMinutes,
   addWeeks,
   differenceInCalendarDays,
+  eachDayOfInterval,
   endOfDay,
   format,
   parseISO,
@@ -101,7 +102,6 @@ export default function Home() {
     format(new Date(), "MMMM yyyy"),
   );
   const localTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
-  const selectedEventId = selectedEvent?.id ?? null;
   const weekViewportMapRef = useRef<Map<number, { top: number; date: Date }>>(new Map());
 
   // Expose populate function to browser console for easy access
@@ -282,6 +282,10 @@ export default function Home() {
     }
   }, [draftEvent, draftEventKey, peopleById, people, localTimeZone]);
 
+  // When creating a draft event, treat it as selected so other events dim
+  const effectiveSelectedEvent = draftPreviewEvent || selectedEvent;
+  const selectedEventId = effectiveSelectedEvent?.id ?? null;
+
   const hydratedEvents = useMemo(() => {
     const events = hydrateEvents(persistedEvents);
     // Include draft preview event if it exists
@@ -447,36 +451,57 @@ export default function Home() {
 
   const openCreationPane = useCallback(
     (options?: { start?: Date; end?: Date }) => {
-      const resolveSelectionDate = () => {
+      const resolveSelectionDates = () => {
         if (selectedDays.size === 0) {
-          return null;
+          return { first: null, last: null };
         }
 
         const sortedKeys = Array.from(selectedDays).sort();
         const firstKey = sortedKeys[0];
+        const lastKey = sortedKeys[sortedKeys.length - 1];
+        
         try {
-          const parsedDate = parseISO(firstKey);
-          if (Number.isNaN(parsedDate.getTime())) {
-            return null;
+          const firstDate = parseISO(firstKey);
+          const lastDate = parseISO(lastKey);
+          
+          if (Number.isNaN(firstDate.getTime()) || Number.isNaN(lastDate.getTime())) {
+            return { first: null, last: null };
           }
-          return parsedDate;
+          
+          return { first: firstDate, last: lastDate };
         } catch {
-          return null;
+          return { first: null, last: null };
         }
       };
+
+      // Check if multiple days are selected and no explicit options provided
+      const hasMultipleSelectedDays = selectedDays.size > 1 && !options?.start && !options?.end;
+      const selection = resolveSelectionDates();
 
       const baseStart =
         options?.start ??
         (() => {
-          const selection = resolveSelectionDate();
-          if (selection) {
-            return setTime(selection, {
+          if (hasMultipleSelectedDays && selection.first) {
+            // Multiple days selected: use 9am of first day
+            return setTime(selection.first, {
               hours: 9,
               minutes: 0,
               seconds: 0,
               milliseconds: 0,
             });
           }
+          
+          if (selection.first) {
+            // Single day selected: use 9am of that day
+            return setTime(selection.first, {
+              hours: 9,
+              minutes: 0,
+              seconds: 0,
+              milliseconds: 0,
+            });
+          }
+          
+          // No selection: use current time rounded to nearest 15 minutes
           const now = new Date();
           const roundedMinutes = Math.floor(now.getMinutes() / 15) * 15;
           return setTime(now, {
@@ -490,7 +515,15 @@ export default function Home() {
       const suggestedEnd =
         options?.end && options.end.getTime() >= baseStart.getTime()
           ? options.end
-          : addMinutes(baseStart, 30);
+          : hasMultipleSelectedDays && selection.last
+            ? // Multiple days selected: use 9am of last day
+              setTime(selection.last, {
+                hours: 9,
+                minutes: 0,
+                seconds: 0,
+                milliseconds: 0,
+              })
+            : addMinutes(baseStart, 30);
 
       const initialValues: CalendarEventFormValues = {
         title: "",
@@ -740,6 +773,8 @@ export default function Home() {
         setDraftEvent(null);
         setDraftEventKey(null);
         setDraftErrors([]);
+        // Clear day selection when selecting the new event
+        setSelectedDays(new Set());
         // Then select the new event the same way as clicking an existing event
         ensureWeekVisible(getWeekIndexForDate(start));
         setSelectedEvent(hydratedNewEvent);
@@ -819,6 +854,27 @@ export default function Home() {
     [],
   );
 
+  const scrollToDate = useCallback(
+    (date: Date) => {
+      const container = calendarScrollRef.current;
+      if (!container) {
+        return;
+      }
+
+      const dateKey = format(startOfDay(date), "yyyy-MM-dd");
+      const dayCell = container.querySelector(`button[data-date="${dateKey}"]`) as HTMLElement | null;
+      
+      if (dayCell) {
+        const targetTop = Math.max(0, dayCell.offsetTop - TOP_SCROLL_OFFSET);
+        container.scrollTo({
+          top: targetTop,
+          behavior: "smooth",
+        });
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!selectedEvent) {
       return;
@@ -836,6 +892,25 @@ export default function Home() {
 
     ensureWeekVisible(getWeekIndexForDate(updatedEvent.startsAt));
   }, [ensureWeekVisible, getWeekIndexForDate, hydratedEvents, selectedEvent]);
+
+  // Scroll to selected event's date when it changes and week is visible
+  useEffect(() => {
+    if (!selectedEvent) {
+      return;
+    }
+
+    const eventDate = selectedEvent.startsAt;
+    const weekIndex = getWeekIndexForDate(eventDate);
+    const isWeekVisible = weekIndex >= visibleWeekRange.start && weekIndex < visibleWeekRange.end;
+
+    if (isWeekVisible) {
+      // Small delay to ensure DOM is updated
+      const timeoutId = setTimeout(() => {
+        scrollToDate(eventDate);
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [selectedEvent, visibleWeekRange, getWeekIndexForDate, scrollToDate]);
 
   const inspectorSections = useMemo<CalendarInspectorSection[]>(() => {
     const groups = new Map<string, { date: Date; events: HydratedCalendarEvent[] }>();
@@ -856,18 +931,55 @@ export default function Home() {
       .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [filteredEvents]);
 
-  const toggleDaySelection = (date: Date, additive: boolean) => {
+  const toggleDaySelection = (date: Date, additive: boolean, isRange: boolean) => {
     const key = format(date, "yyyy-MM-dd");
     const weekIndex = getWeekIndexForDate(date);
+    
+    // Cancel draft event creation when changing selection
+    handleDraftCancel();
+    
+    // Clear event selection when selecting days
+    setSelectedEvent(null);
+    
     setSelectedDays((prev) => {
       const alreadySelected = prev.has(key);
 
-      if (!additive) {
-        if (alreadySelected && prev.size === 1) {
-          return new Set();
+      // Range selection: select all days between the first selected day and the clicked day
+      if (isRange) {
+        if (prev.size === 0) {
+          // If no days are selected, just select the clicked day (same as regular click)
+          const next = new Set<string>();
+          next.add(key);
+          ensureWeekVisible(weekIndex);
+          setIsSidebarOpen(true);
+          return next;
         }
-        const next = new Set<string>();
-        if (!alreadySelected) {
+        
+        // Find the first selected day (chronologically)
+        const sortedKeys = Array.from(prev).sort();
+        const firstSelectedKey = sortedKeys[0];
+        const firstSelectedDate = parseISO(firstSelectedKey);
+        const clickedDate = startOfDay(date);
+        
+        // Select all days from first selected to clicked (inclusive)
+        const startDate = firstSelectedDate < clickedDate ? firstSelectedDate : clickedDate;
+        const endDate = firstSelectedDate < clickedDate ? clickedDate : firstSelectedDate;
+        
+        // Select all days in the range
+        const rangeDays = eachDayOfInterval({ start: startDate, end: endDate });
+        const next = new Set(rangeDays.map((d) => format(d, "yyyy-MM-dd")));
+        
+        ensureWeekVisible(weekIndex);
+        setIsSidebarOpen(true);
+        return next;
+      }
+
+      // Additive selection (Cmd/Ctrl+click): add/remove from selection
+      if (additive) {
+        const next = new Set(prev);
+        if (alreadySelected) {
+          next.delete(key);
+        } else {
           next.add(key);
           ensureWeekVisible(weekIndex);
         }
@@ -877,10 +989,12 @@ export default function Home() {
         return next;
       }
 
-      const next = new Set(prev);
-      if (alreadySelected) {
-        next.delete(key);
-      } else {
+      // Regular click: replace selection
+      if (alreadySelected && prev.size === 1) {
+        return new Set();
+      }
+      const next = new Set<string>();
+      if (!alreadySelected) {
         next.add(key);
         ensureWeekVisible(weekIndex);
       }
@@ -899,6 +1013,9 @@ export default function Home() {
       setSelectedEvent(null);
       return;
     }
+    
+    // Clear day selection when selecting an event
+    setSelectedDays(new Set());
     
     ensureWeekVisible(getWeekIndexForDate(calendarEvent.startsAt));
     setSelectedEvent(calendarEvent);
@@ -1089,7 +1206,7 @@ export default function Home() {
               weekRange={visibleWeekRange}
               totalWeeks={TOTAL_WEEKS}
               selectedEventId={selectedEventId}
-              selectedEvent={selectedEvent}
+              selectedEvent={effectiveSelectedEvent}
               onDaySelect={toggleDaySelection}
               onEventSelect={handleEventSelect}
               onEventCreate={handleCreateIntent}
@@ -1128,6 +1245,7 @@ export default function Home() {
                 draftEvent={draftEvent}
                 onSubmitDraft={handleDraftSubmit}
                 onCancelDraft={handleDraftCancel}
+                onDraftChange={setDraftEvent}
                 draftErrors={draftErrors}
                 isDraftSaving={isDraftSaving}
                 draftFormKey={draftEventKey}

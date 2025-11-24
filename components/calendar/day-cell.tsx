@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyboardEvent, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { KeyboardEvent, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addMinutes, format } from "date-fns";
 
 import { cn } from "@/lib/cn";
@@ -48,8 +48,115 @@ export function CalendarDayCell({
   const [hoverState, setHoverState] = useState<HoverIndicatorState | null>(null);
   const [showAnimation, setShowAnimation] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [visibleEventCount, setVisibleEventCount] = useState<number | null>(null);
 
   const hasEvents = day.events.length > 0;
+  
+  // Calculate grouped events (time-off events grouped together)
+  const groupedEventsData = useMemo(() => {
+    const timeOffEvents: HydratedCalendarEvent[] = [];
+    const otherEvents: HydratedCalendarEvent[] = [];
+    
+    day.events.forEach((event) => {
+      if (event.type === "time-off") {
+        timeOffEvents.push(event);
+      } else {
+        otherEvents.push(event);
+      }
+    });
+
+    // Count unique people for time-off (by owner ID or name)
+    const uniqueTimeOffPeople = new Set<string>();
+    timeOffEvents.forEach((event) => {
+      const personId = event.owner.id || event.owner.name;
+      uniqueTimeOffPeople.add(personId);
+    });
+
+    // Create grouped events list: grouped time-off first (if any), then other events
+    const renderedEvents: HydratedCalendarEvent[] = [];
+    
+    if (timeOffEvents.length > 0) {
+      // Create a synthetic grouped event for display
+      const firstTimeOffEvent = timeOffEvents[0];
+      const groupedTimeOffEvent: HydratedCalendarEvent = {
+        ...firstTimeOffEvent,
+        id: `grouped-time-off-${day.date.toISOString()}`,
+        title: `${uniqueTimeOffPeople.size} ${uniqueTimeOffPeople.size === 1 ? "person" : "people"} off`,
+      };
+      renderedEvents.push(groupedTimeOffEvent);
+    }
+    
+    renderedEvents.push(...otherEvents);
+
+    return {
+      renderedEvents,
+      timeOffEvents,
+      groupedEventsCount: renderedEvents.length,
+    };
+  }, [day.events, day.date]);
+  
+  // Event height is 20px, gap is 2px
+  // For N events: height = N * 20 + (N - 1) * 2 = 22N - 2
+  // For N events + "more events" text: height = N * 20 + N * 2 + 20 = 22N + 20
+  const EVENT_HEIGHT = 20;
+  const EVENT_GAP = 2;
+  const MORE_EVENTS_TEXT_HEIGHT = 20; // Same height as an event
+  
+  // Calculate how many events can fit
+  const calculateVisibleEvents = useCallback(() => {
+    const container = eventContainerRef.current;
+    if (!container || groupedEventsData.groupedEventsCount === 0) {
+      setVisibleEventCount(null);
+      return;
+    }
+
+    const containerHeight = container.clientHeight;
+    if (containerHeight === 0) {
+      setVisibleEventCount(null);
+      return;
+    }
+
+    // First check if all grouped events fit without "more events" text
+    // Height for all events: groupedEventsCount * 20 + (groupedEventsCount - 1) * 2
+    const heightForAllEvents = groupedEventsData.groupedEventsCount * EVENT_HEIGHT + (groupedEventsData.groupedEventsCount - 1) * EVENT_GAP;
+    
+    if (heightForAllEvents <= containerHeight) {
+      // All events fit
+      setVisibleEventCount(groupedEventsData.groupedEventsCount);
+      return;
+    }
+
+    // Not all events fit, calculate how many events + "more events" text can fit
+    // Height = N * 20 + N * 2 + 20 = 22N + 20
+    // So: 22N + 20 <= containerHeight
+    // N <= (containerHeight - 20) / 22
+    const maxEventsWithMoreText = Math.floor((containerHeight - MORE_EVENTS_TEXT_HEIGHT) / (EVENT_HEIGHT + EVENT_GAP));
+    
+    if (maxEventsWithMoreText > 0) {
+      setVisibleEventCount(maxEventsWithMoreText);
+    } else {
+      // Even the "more events" text doesn't fit, but show it anyway
+      setVisibleEventCount(0);
+    }
+  }, [groupedEventsData.groupedEventsCount]);
+
+  // Recalculate when container size or events change
+  useEffect(() => {
+    calculateVisibleEvents();
+    
+    const container = eventContainerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      calculateVisibleEvents();
+    });
+
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [calculateVisibleEvents]);
 
   useEffect(() => {
     if (hoverState) {
@@ -161,6 +268,7 @@ export function CalendarDayCell({
 
       const eventWidth = eventBounds[0]?.width ?? containerWidth;
 
+      const renderedEvents = groupedEventsData.renderedEvents;
       const firstGapHeight = eventBounds[0].top;
       if (firstGapHeight >= 0) {
         slots.push({
@@ -170,7 +278,7 @@ export function CalendarDayCell({
           center: Math.min(eventBounds[0].top / 2, INTERACTIVE_PAD),
           width: eventWidth,
           previousEventId: null,
-          nextEventId: day.events[0]?.id ?? null,
+          nextEventId: renderedEvents[0]?.id ?? null,
         });
       }
 
@@ -188,8 +296,8 @@ export function CalendarDayCell({
             end: Math.min(containerHeight, gapEnd + INTERACTIVE_PAD),
             center: gapStart + gapHeight / 2,
             width: eventWidth,
-            previousEventId: day.events[index - 1]?.id ?? null,
-            nextEventId: day.events[index]?.id ?? null,
+            previousEventId: renderedEvents[index - 1]?.id ?? null,
+            nextEventId: renderedEvents[index]?.id ?? null,
           });
         }
       }
@@ -203,7 +311,7 @@ export function CalendarDayCell({
           end: Math.min(containerHeight, lastBounds.bottom + INTERACTIVE_PAD * 2),
           center: lastBounds.bottom,
           width: eventWidth,
-          previousEventId: day.events[day.events.length - 1]?.id ?? null,
+          previousEventId: renderedEvents[renderedEvents.length - 1]?.id ?? null,
           nextEventId: null,
         });
       }
@@ -216,7 +324,7 @@ export function CalendarDayCell({
           end: containerHeight,
           center: Math.max(0, containerHeight - INTERACTIVE_PAD / 2),
           width: eventWidth,
-          previousEventId: day.events[day.events.length - 1]?.id ?? null,
+          previousEventId: renderedEvents[renderedEvents.length - 1]?.id ?? null,
           nextEventId: null,
         });
       }
@@ -280,12 +388,46 @@ export function CalendarDayCell({
       0,
       0,
     );
-    const minutesInDay = 24 * 60;
-    const suggestedMinutes = Math.min(
-      Math.round((hoverState.ratio * minutesInDay) / 15) * 15,
-      minutesInDay - 15,
-    );
-    const start = addMinutes(startOfDay, suggestedMinutes);
+
+    let start: Date;
+
+    // If there's a previous event, use its end time as the start time
+    if (hoverState.previousEventId) {
+      const previousEvent = day.events.find((event) => event.id === hoverState.previousEventId);
+      if (previousEvent) {
+        const previousEnd = previousEvent.endsAt ?? previousEvent.startsAt;
+        // Round to nearest 15 minutes
+        const minutes = previousEnd.getMinutes();
+        const roundedMinutes = Math.round(minutes / 15) * 15;
+        start = new Date(previousEnd);
+        start.setMinutes(roundedMinutes);
+        start.setSeconds(0);
+        start.setMilliseconds(0);
+        
+        // If rounding caused it to go to the next hour, adjust
+        if (roundedMinutes >= 60) {
+          start.setHours(start.getHours() + 1);
+          start.setMinutes(0);
+        }
+      } else {
+        // Fallback to ratio-based calculation if previous event not found
+        const minutesInDay = 24 * 60;
+        const suggestedMinutes = Math.min(
+          Math.round((hoverState.ratio * minutesInDay) / 15) * 15,
+          minutesInDay - 15,
+        );
+        start = addMinutes(startOfDay, suggestedMinutes);
+      }
+    } else {
+      // No previous event, use ratio-based calculation
+      const minutesInDay = 24 * 60;
+      const suggestedMinutes = Math.min(
+        Math.round((hoverState.ratio * minutesInDay) / 15) * 15,
+        minutesInDay - 15,
+      );
+      start = addMinutes(startOfDay, suggestedMinutes);
+    }
+
     const rawEnd = addMinutes(start, 30);
     const cappedEnd =
       rawEnd.getFullYear() === start.getFullYear() &&
@@ -333,6 +475,10 @@ export function CalendarDayCell({
   const handleCreateEventClick = (interactionEvent: MouseEvent<HTMLDivElement>) => {
     interactionEvent.preventDefault();
     interactionEvent.stopPropagation();
+    
+    if (!hoverState) {
+      return;
+    }
 
     createEventAtHoverState();
   };
@@ -350,12 +496,12 @@ export function CalendarDayCell({
   return (
     <div
       className={cn(
-        "relative flex h-full w-full flex-col rounded-[12px] border-2 border-transparent bg-bg px-[14px] pb-[14px] pt-[12px] text-fg transition-all duration-150",
+        "relative flex h-full w-full flex-col rounded-[12px] border-2 bg-bg px-[14px] pb-[14px] pt-[12px] text-fg transition-all duration-150",
+        day.isSelected ? "border-[#3AD33A]" : "border-transparent",
         !day.isSelected &&
           "group-hover:border-border group-hover:shadow-[0_0_0_1px_rgba(0,0,0,0.08)] group-active:border-success/60 group-active:shadow-[0_0_0_1px_rgba(22,163,74,0.45)]",
         day.isToday && "bg-bg2",
         day.isToday && !day.isSelected && "border-border",
-        day.isSelected && "border-[#3AD33A]",
         day.isDimmed && "opacity-30",
       )}
     >
@@ -391,33 +537,86 @@ export function CalendarDayCell({
         onMouseLeave={handleMouseLeave}
         role="presentation"
       >
-        {day.events.map((event) => {
-          const isSelected = selectedEventId === event.id;
-          const isPartOfSelectedRecurringSeries =
-            selectedEvent && !isSelected && selectedEventId
-              ? areEventsInSameRecurringSeries(event, selectedEvent)
-              : false;
+        {(() => {
+          const { renderedEvents, timeOffEvents } = groupedEventsData;
+
+          // Apply visibility limit
+          const eventsToShow = visibleEventCount !== null && visibleEventCount < renderedEvents.length
+            ? renderedEvents.slice(0, visibleEventCount)
+            : renderedEvents;
+          
+          const remainingCount = renderedEvents.length - eventsToShow.length;
+          const showMoreEvents = remainingCount > 0;
 
           return (
-            <CalendarDayCellEvent
-              key={event.id}
-              event={event}
-              isSelected={isSelected}
-              isPartOfSelectedRecurringSeries={isPartOfSelectedRecurringSeries}
-              hasSelectedEvent={!!selectedEventId}
-              onSelect={onEventClick}
-            />
+            <>
+              {eventsToShow.map((event) => {
+                const isGroupedTimeOff = event.id.startsWith("grouped-time-off-");
+                const isSelected = selectedEventId === event.id;
+                
+                // For grouped time-off, check if any of the underlying events is selected
+                const isAnyTimeOffSelected = isGroupedTimeOff 
+                  ? timeOffEvents.some((e) => e.id === selectedEventId)
+                  : false;
+                
+                const actualIsSelected = isGroupedTimeOff ? isAnyTimeOffSelected : isSelected;
+                
+                const isPartOfSelectedRecurringSeries =
+                  selectedEvent && !actualIsSelected && selectedEventId
+                    ? (isGroupedTimeOff
+                        ? timeOffEvents.some((e) => areEventsInSameRecurringSeries(e, selectedEvent))
+                        : areEventsInSameRecurringSeries(event, selectedEvent))
+                    : false;
+
+                return (
+                  <CalendarDayCellEvent
+                    key={event.id}
+                    event={event}
+                    isSelected={actualIsSelected}
+                    isPartOfSelectedRecurringSeries={isPartOfSelectedRecurringSeries}
+                    hasSelectedEvent={!!selectedEventId}
+                    onSelect={(e) => {
+                      // When clicking grouped time-off, select the first underlying event
+                      if (isGroupedTimeOff && timeOffEvents.length > 0 && onEventClick) {
+                        onEventClick(timeOffEvents[0]);
+                      } else if (onEventClick) {
+                        onEventClick(event);
+                      }
+                    }}
+                  />
+                );
+              })}
+              {showMoreEvents && (
+                <div className="flex h-[20px] items-center justify-center rounded-sm px-[4px] text-tag text-fg leading-none">
+                  {remainingCount} more {remainingCount === 1 ? "event" : "events"}
+                </div>
+              )}
+            </>
           );
-        })}
+        })()}
 
         {hoverState && indicatorMetrics && showAnimation && (
-          <div className="absolute inset-0 z-50">
+          <div className="absolute inset-0 z-50 pointer-events-none">
             <div
-              className="pointer-events-none absolute left-0 flex"
+              className="absolute left-0 flex cursor-pointer pointer-events-auto"
               style={{
                 top: `${hoverState.top}px`,
                 transform: "translateY(-50%)",
+                height: "12px",
+                alignItems: "center",
               }}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+              }}
+              onClick={handleCreateEventClick}
+              onKeyDown={handleCreateEventKeyDown}
+              role="button"
+              tabIndex={0}
+              aria-label={hasEvents ? "Create event at this time" : "Create your first event"}
             >
               <div
                 className="h-[2px] rounded-full origin-left"
@@ -430,7 +629,7 @@ export function CalendarDayCell({
               />
             </div>
             <div
-              className="absolute flex size-[12px] items-center justify-center rounded-full text-[10px] font-semibold leading-none text-white transition-transform duration-150 hover:scale-[1.08] active:scale-[0.95] origin-center"
+              className="absolute flex size-[12px] items-center justify-center rounded-full text-[10px] font-semibold leading-none text-white transition-transform duration-150 hover:scale-[1.08] active:scale-[0.95] origin-center cursor-pointer pointer-events-auto"
               style={{
                 top: `${hoverState.top}px`,
                 left: `${indicatorMetrics.circleCenter}px`,
@@ -446,7 +645,10 @@ export function CalendarDayCell({
               onPointerDown={(event) => {
                 event.stopPropagation();
               }}
-              onClick={handleCreateEventClick}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleCreateEventClick(event);
+              }}
               onKeyDown={handleCreateEventKeyDown}
               role="button"
               tabIndex={0}
