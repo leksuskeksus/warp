@@ -71,6 +71,7 @@ const ATTENDEE_EVENT_TYPES = new Set<CalendarEvent["type"]>(["company-event"]);
 const RECURRENCE_EVENT_TYPES = new Set<CalendarEvent["type"]>(["deadline"]);
 
 export default function Home() {
+  const [isMounted, setIsMounted] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isLeadingSidebarCollapsed, setIsLeadingSidebarCollapsed] = useState(false);
   const [persistedEvents, setPersistedEvents] = useEvents();
@@ -100,11 +101,22 @@ export default function Home() {
   const calendarScrollRef = useRef<HTMLDivElement | null>(null);
   const todayWeekStartNodeRef = useRef<HTMLButtonElement | null>(null);
   const hasScrolledToTodayRef = useRef(false);
-  const [visibleMonthLabel, setVisibleMonthLabel] = useState(() =>
-    format(new Date(), "MMMM yyyy"),
-  );
-  const localTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
+  const [visibleMonthLabel, setVisibleMonthLabel] = useState(() => {
+    if (typeof window === "undefined") {
+      return "Loading...";
+    }
+    return format(new Date(), "MMMM yyyy");
+  });
+  const localTimeZone = useMemo(() => {
+    if (typeof window === "undefined") return "UTC";
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  }, []);
   const weekViewportMapRef = useRef<Map<number, { top: number; date: Date }>>(new Map());
+
+  // Ensure component only renders on client to avoid hydration mismatches
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Auto-populate events if storage is empty
   useEffect(() => {
@@ -163,9 +175,19 @@ export default function Home() {
     }
   }, [setPersistedEvents]);
 
-  const today = useMemo(() => {
+  const [today, setToday] = useState<Date>(() => {
+    if (typeof window === "undefined") {
+      // Placeholder date for SSR - will be updated on client
+      return new Date(2024, 0, 1);
+    }
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  });
+
+  // Update today after mount to ensure client-side date
+  useEffect(() => {
+    const now = new Date();
+    setToday(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
   }, []);
 
   const calendarBaseDate = useMemo(() => {
@@ -1307,6 +1329,26 @@ export default function Home() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleDraftCancel]);
+
+  // Prevent hydration mismatch by only rendering calendar on client
+  if (!isMounted) {
+    return (
+      <div className="force-light flex h-screen bg-bg text-g8">
+        <div
+          onClick={() => setIsLeadingSidebarCollapsed((prev) => !prev)}
+          className={cn(
+            "max-tablet:hidden sticky inset-0 right-auto flex h-screen flex-col bg-g98 transition-all duration-200 ease-out cursor-pointer",
+            isLeadingSidebarCollapsed ? "w-[64px]" : "w-[250px] p-[20px]",
+          )}
+        />
+        <main className="relative flex flex-1 min-h-0 flex-col overflow-hidden border border-border bg-bg">
+          <div className="flex h-full items-center justify-center">
+            <div className="text-body-2 text-fg3">Loading calendar...</div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="force-light flex h-screen bg-bg text-g8">
