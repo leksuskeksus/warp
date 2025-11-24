@@ -449,9 +449,37 @@ export function CalendarEventForm({
               </Select>
             </div>
 
-            {/* Date and Time */}
-            <div className="flex flex-col gap-[12px]">
-              <div className="flex items-center gap-[8px]">
+            {/* All day checkbox - shown for company-event and deadline */}
+            {(isCompanyEvent || isDeadline) && (
+              <div className="flex items-center">
+                <label htmlFor={allDayId} className="flex items-center gap-[8px] cursor-pointer">
+                  <input
+                    id={allDayId}
+                    type="checkbox"
+                    checked={values.isAllDay}
+                    onChange={handleCheckboxChange("isAllDay")}
+                    disabled={isSaving}
+                    className="w-[16px] h-[16px] cursor-pointer"
+                  />
+                  <span className="text-body-2 text-fg">All day</span>
+                </label>
+              </div>
+            )}
+
+            {/* Time Started and Date Started - for company-event and deadline */}
+            {(isCompanyEvent || isDeadline) && (
+              <div className="flex items-center gap-[12px]">
+                {!values.isAllDay && (
+                  <Input
+                    id={startTimeId}
+                    type="time"
+                    value={values.startTime}
+                    onChange={handleChange("startTime")}
+                    disabled={isSaving}
+                    className="w-[100px]"
+                    placeholder="Time Started"
+                  />
+                )}
                 <Input
                   id={startDateId}
                   type="date"
