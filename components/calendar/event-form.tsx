@@ -449,60 +449,9 @@ export function CalendarEventForm({
               </Select>
             </div>
 
-            {/* Person selector - for birthday, time-off, and work-anniversary */}
-            {isPersonEvent && (
-              <div className="flex items-center gap-[12px]">
-                <label htmlFor={birthdayBoyId} className="text-body-2 text-fg">
-                  {isBirthday ? "Person" : isTimeOff ? "Person" : "Person"}
-                </label>
-                <Select
-                  id={birthdayBoyId}
-                  value={values.personId || ""}
-                  onChange={handleChange("personId")}
-                  disabled={isSaving}
-                  className="flex-1 max-w-[420px]"
-                >
-                  <option value="">Select person...</option>
-                  {people.map((person) => (
-                    <option key={person.id} value={person.id}>
-                      {person.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            )}
-
-            {/* All day checkbox - shown for company-event and deadline */}
-            {(isCompanyEvent || isDeadline) && (
-              <div className="flex items-center">
-                <label htmlFor={allDayId} className="flex items-center gap-[8px] cursor-pointer">
-                  <input
-                    id={allDayId}
-                    type="checkbox"
-                    checked={values.isAllDay}
-                    onChange={handleCheckboxChange("isAllDay")}
-                    disabled={isSaving}
-                    className="w-[16px] h-[16px] cursor-pointer"
-                  />
-                  <span className="text-body-2 text-fg">All day</span>
-                </label>
-              </div>
-            )}
-
-            {/* Time Started and Date Started - for company-event and deadline */}
-            {(isCompanyEvent || isDeadline) && (
-              <div className="flex items-center gap-[12px]">
-                {!values.isAllDay && (
-                  <Input
-                    id={startTimeId}
-                    type="time"
-                    value={values.startTime}
-                    onChange={handleChange("startTime")}
-                    disabled={isSaving}
-                    className="w-[100px]"
-                    placeholder="Time Started"
-                  />
-                )}
+            {/* Date and Time */}
+            <div className="flex flex-col gap-[12px]">
+              <div className="flex items-center gap-[8px]">
                 <Input
                   id={startDateId}
                   type="date"

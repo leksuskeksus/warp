@@ -34,4 +34,46 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# warp
+
+---
+
+## Warp Calendar Test Case
+
+### Style
+
+scraped styles from your app, tried to match where i could but more of a spirit of the law than letter of the law
+
+minimal app chrome, tried to maximize content area to enable readability at high data density, existing controls placed over soft overlay
+
+### What We Got
+
+#### Calendar View
+
+- unbroken smooth scroll, added pagination
+- main navigation, displays all events
+- select events, or select days with clicks, shift+clicks, cmd+clicks for filtration and quick spanning events
+- optimized for scrolling performance
+- create events by clicking on gaps in between events, or quickly create spanning events by
+- groupped time off
+- supports overflow
+
+#### Inspector View
+
+- collapse for fullscreen overview
+- shows all upcoming events in a chronological view
+- click event to focus it; scrolls the calendar to event's date
+
+#### Event Detail & New Event Creation
+
+- all formal requests satisfied, but very hacky and uneven, i was rushing
+- (laggy) realtime preview of all edits on the calendar
+
+### Bugs
+
+(empty for now)
+
+### What We Don't Got
+
+- filtering (it's implied in the ui, but completely non functional, except for the date)
+- external calendar sync
+- mobile layout
